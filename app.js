@@ -244,7 +244,7 @@ $("#bulkApply").addEventListener("click", () => {
 });
 
 /* ---------- seller mode: edit here, save through GitHub (only the repo owner can commit) ---------- */
-const GH = { owner: "makoymakoy121706", repo: "axie-team-builder", path: "data/prices.json" };
+const GH = { owner: "beaconp413-rgb", repo: "axie-team-builder", path: "data/prices.json" };
 const ghEditUrl = `https://github.com/${GH.owner}/${GH.repo}/edit/main/${GH.path}`;
 function pricesJson(){
   const out = {};
