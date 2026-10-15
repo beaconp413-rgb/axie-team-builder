@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Pick any 3 Axies, see the team total in pesos and every battle card, then send me your team.">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Axie Team Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: shop shelf of Axie cards; a 3-slot team tray docks at the bottom with the running peso total. */
+:root{
+  --bg:#F2F5EE; --surface:#FFFFFF; --sunk:#E6EBE0; --ink:#1C261F; --muted:#5E6B61; --line:#D5DDD0;
+  --accent:#3D45D6; --accent-ink:#FFFFFF; --good:#2E8B3E; --warn:#B8540F; --edit:#FFF4D6; --edit-line:#E2B84A;
+  --c-Beast:#E0A100; --c-Aquatic:#00A7BD; --c-Plant:#5FA800; --c-Bug:#E8483A; --c-Bird:#E76FA6; --c-Reptile:#A955B5; --c-Dawn:#7F92D9; --c-Dusk:#128A8C; --c-Mech:#8A8F99;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"Nunito Sans", system-ui, -apple-system, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+  --tray-h:150px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#121713; --surface:#1B221D; --sunk:#232C25; --ink:#E8EEE6; --muted:#9AA79C; --line:#2F3A31;
+  --accent:#8C93FF; --accent-ink:#11132E; --good:#6CCB7A; --warn:#F0A36A; --edit:#2E2817; --edit-line:#8A6D22; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#121713; --surface:#1B221D; --sunk:#232C25; --ink:#E8EEE6; --muted:#9AA79C; --line:#2F3A31;
+  --accent:#8C93FF; --accent-ink:#11132E; --good:#6CCB7A; --warn:#F0A36A; --edit:#2E2817; --edit-line:#8A6D22; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px calc(var(--tray-h) + 40px)}
+header h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;margin:0;text-wrap:balance}
+header p{margin:6px 0 0;color:var(--muted);max-width:62ch}
+.steps{display:flex;flex-wrap:wrap;gap:8px 18px;margin:14px 0 0;padding:0;list-style:none;color:var(--muted);font-size:14px}
+.steps b{color:var(--ink)}
+.owner{margin:20px 0 0;background:var(--edit);border:1px solid var(--edit-line);border-radius:12px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.owner p{margin:0;flex:1 1 280px;font-size:14px;min-width:0}
+.owner .bulk{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px}
+.owner textarea{width:100%;font:12px var(--mono);border-radius:8px;border:1px solid var(--edit-line);background:var(--surface);color:var(--ink);padding:8px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:22px 0 16px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;font:600 13px var(--body);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip .dot{width:9px;height:9px;border-radius:50%}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip:focus-visible,.btn:focus-visible,select:focus-visible,input:focus-visible,.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ctl{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+select,input[type=search],input[type=number]{font:600 13px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+input[type=search]{width:180px;max-width:100%}
+.count{color:var(--muted);font-size:13px;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;cursor:pointer;position:relative;transition:transform .12s, border-color .12s}
+.card:hover{transform:translateY(-2px);border-color:var(--muted)}
+.card.picked{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.card.off{cursor:default}
+.card.off .art img{opacity:.45;filter:grayscale(1)}
+.card.off:hover{transform:none}
+.editing .card{cursor:default}
+.editing .card:hover{transform:none}
+.card .art{background:var(--sunk);border-radius:10px;aspect-ratio:4/3;display:grid;place-items:center;overflow:hidden;max-width:100%;position:relative}
+.card .art img{width:100%;height:100%;object-fit:contain}
+.stamp{position:absolute;top:8px;left:8px;font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;background:var(--ink);color:var(--bg);padding:3px 8px;border-radius:6px}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.name{font-family:var(--display);font-weight:600;font-size:16px;line-height:1.2;overflow-wrap:anywhere;min-width:0}
+.id{font:500 11px var(--mono);color:var(--muted)}
+.cls{font:700 11px var(--body);letter-spacing:.06em;text-transform:uppercase;color:#fff;border-radius:6px;padding:3px 7px;white-space:nowrap}
+.meta{display:flex;gap:10px;font:500 12px var(--mono);color:var(--muted);flex-wrap:wrap}
+.meta b{color:var(--ink);font-weight:700}
+.parts{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.part{font-size:12px;display:flex;align-items:center;gap:6px;min-width:0}
+.part i{width:8px;height:8px;border-radius:2px;flex:none}
+.part span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.buy{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:auto;padding-top:8px;border-top:1px dashed var(--line)}
+.price{font:700 18px var(--mono);font-variant-numeric:tabular-nums}
+.price.none{font:600 13px var(--body);color:var(--muted)}
+.ed{display:flex;flex-direction:column;gap:6px;margin-top:auto;padding:8px;border-radius:10px;background:var(--edit);border:1px solid var(--edit-line)}
+.ed label{font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px}
+.ed .peso{display:flex;align-items:center;gap:6px;font:700 16px var(--mono)}
+.ed input[type=number]{width:100%;font:700 15px var(--mono)}
+.btn{font:700 13px var(--body);border-radius:10px;padding:8px 12px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);cursor:pointer;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.lv2{font:700 10px var(--mono);background:var(--warn);color:var(--surface);border-radius:4px;padding:1px 4px;flex:none}
+.lvcount{font:700 12px var(--mono);color:var(--warn)}
+.cardsbtn{align-self:flex-start;font:700 12px var(--body);background:var(--sunk);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
+.cardsbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+dialog#cardsDlg{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);padding:0;width:min(760px,calc(100% - 24px));max-height:calc(100% - 24px)}
+dialog#cardsDlg::backdrop{background:rgba(10,14,11,.6)}
+.dlg-in{padding:16px;display:flex;flex-direction:column;gap:14px}
+.dlg-head{display:flex;gap:12px;align-items:center}
+.dlg-head img{width:96px;height:72px;object-fit:contain;background:var(--sunk);border-radius:10px;flex:none}
+.dlg-head .name{font-size:20px}
+.dlg-head .x{margin-left:auto;align-self:flex-start;border:0;background:var(--sunk);color:var(--ink);border-radius:8px;font-size:18px;width:34px;height:34px;cursor:pointer;flex:none}
+.bcards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.bc{display:flex;flex-direction:column;gap:6px;min-width:0}
+.bcard{position:relative;aspect-ratio:3/4;max-width:100%;background-size:cover;background-position:center;border-radius:10px;overflow:hidden;color:#fff}
+.bcard .en{position:absolute;left:4%;top:3%;width:20%;aspect-ratio:1;display:grid;place-items:center;font:800 clamp(14px,2.6vw,22px) var(--display);text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.bcard .nm{position:absolute;left:27%;right:8%;top:5.5%;font:700 clamp(10px,1.6vw,13px) var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.bcard .ds{position:absolute;left:8%;right:8%;top:68%;bottom:6%;font:600 clamp(8px,1.25vw,11px)/1.25 var(--body);overflow:hidden;color:#EAF2EE}
+.bcard .lv{position:absolute;right:5%;top:52%;font:800 11px var(--mono);background:var(--warn);color:#fff;border-radius:5px;padding:2px 5px}
+.bcard .at,.bcard .df{position:absolute;left:5%;display:flex;align-items:center;gap:3px;font:800 clamp(10px,1.7vw,14px) var(--mono);color:#fff;border-radius:999px;padding:2px 6px 2px 4px;text-shadow:0 1px 1px rgba(0,0,0,.4)}
+.bcard .at{top:25%;background:#C8432F}
+.bcard .df{top:36%;background:#2F7BC8}
+.bcard .at svg,.bcard .df svg{width:1em;height:1em;flex:none}
+@media (max-width:560px){.deck .bcard .at,.deck .bcard .df{font-size:9px;padding:1px 4px 1px 2px;gap:1px}.deck .bcard .at{top:30%}.deck .bcard .df{top:44%}}
+.bstat{display:flex;gap:8px;font:700 12px var(--mono);justify-content:center}
+.bstat .atk{color:var(--c-Bug)} .bstat .def{color:var(--c-Aquatic)}
+.bpart{font-size:11px;color:var(--muted);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dlg-note{font-size:12px;color:var(--muted);margin:0}
+dialog#teamDlg{border:0;padding:0;margin:auto;background:var(--bg);color:var(--ink);width:min(820px,100%);max-width:100%;max-height:100%;height:100%;border-radius:0}
+@media (min-width:860px){dialog#teamDlg{height:auto;max-height:calc(100% - 32px);border-radius:18px;border:1px solid var(--line)}}
+dialog#teamDlg::backdrop{background:rgba(10,14,11,.7)}
+.sheet-bar{position:sticky;top:0;z-index:2;display:flex;gap:8px;align-items:center;justify-content:space-between;background:var(--surface);border-bottom:1px solid var(--line);padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+.sheet-bar span{font-size:13px;color:var(--muted);min-width:0}
+.sheet{padding:18px 16px 28px;display:flex;flex-direction:column;gap:18px}
+.sheet-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.sheet-head h2{font-family:var(--display);font-weight:800;font-size:clamp(24px,5vw,34px);letter-spacing:-.02em;margin:0;line-height:1.05}
+.sheet-head .date{font:500 12px var(--mono);color:var(--muted)}
+.sheet-total{text-align:right}
+.sheet-total .lbl{font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block}
+.sheet-total .sum{font:700 30px var(--mono);font-variant-numeric:tabular-nums;color:var(--accent);line-height:1.1}
+.lineup{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mem{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.mem .pos{display:flex;justify-content:space-between;align-items:center;font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.mem .mv{display:flex;gap:4px}
+.mem .mv button{border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:6px;width:26px;height:24px;cursor:pointer;font-size:13px;line-height:1}
+.mem .mv button[disabled]{opacity:.3;cursor:default}
+.mem .pic{background:var(--sunk);border-radius:10px;aspect-ratio:4/3;max-width:100%;display:grid;place-items:center;overflow:hidden}
+.mem .pic img{width:100%;height:100%;object-fit:contain}
+.mem .name{font-size:15px}
+.mem .mprice{font:700 16px var(--mono);font-variant-numeric:tabular-nums}
+.deck{display:flex;flex-direction:column;gap:16px}
+.deck h3{font-family:var(--display);font-weight:800;font-size:20px;margin:0}
+.deck-row{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.deck-row .who{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.deck-row .who b{font-family:var(--display);font-size:15px}
+.bdesc{font-size:11px;line-height:1.3;color:var(--muted);text-align:center}
+.sheet-foot{font-size:13px;color:var(--muted);text-align:center;border-top:1px dashed var(--line);padding-top:12px}
+@media (max-width:560px){
+  .lineup{gap:6px}
+  .mem{padding:6px;gap:4px}
+  .mem .name{font-size:12px}
+  .mem .meta{font-size:10px;gap:4px}
+  .mem .mprice{font-size:13px}
+  .mem .cls{font-size:9px;padding:2px 5px}
+  .deck .bcards{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+  .deck .bcard .nm{font-size:8px;left:26%;top:5%}
+  .deck .bcard .ds{font-size:7px;line-height:1.2;left:6%;right:6%}
+  .deck .bcard .en{font-size:15px}
+  .deck .bstat{font-size:9px;gap:4px;flex-wrap:wrap}
+  .deck .bc .cn{font:700 10px var(--body);text-align:center;line-height:1.15}
+  .bdesc{font-size:9px}
+}
+.bc .cn{font:700 12px var(--body);text-align:center}
+@media (max-width:560px){.bcards{grid-template-columns:repeat(2,minmax(0,1fr))}.bcard .nm{font-size:13px}.bcard .ds{font-size:11px}.bcard .en{font-size:22px}}
+.tray{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -8px 24px rgba(0,0,0,.08);padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));padding-top:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));z-index:5}
+.tray-in{max-width:1180px;margin:0 auto;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.slots{display:flex;gap:8px;flex:1 1 360px;min-width:0}
+.slot{flex:1;min-width:0;border:1.5px dashed var(--line);border-radius:12px;height:76px;display:flex;align-items:center;gap:8px;padding:6px;position:relative}
+.slot.full{border-style:solid;border-color:var(--accent);background:var(--sunk)}
+.slot img{height:60px;width:60px;object-fit:contain;flex:none}
+.slot .t{min-width:0;font-size:12px;line-height:1.25}
+.slot .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.slot .x{position:absolute;top:2px;right:4px;border:0;background:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 4px}
+.slot .empty{color:var(--muted);font-size:12px;width:100%;text-align:center}
+.total{display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-left:auto}
+.total .lbl{font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.total .sum{font:700 26px var(--mono);font-variant-numeric:tabular-nums;line-height:1}
+.total .note{font:500 12px var(--body);color:var(--muted)}
+.tray-actions{display:flex;gap:8px;align-items:center}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tray-h) + 16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:10px;font-weight:600;font-size:13px;z-index:6;max-width:calc(100% - 32px)}
+textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);padding:8px}
+@media (max-width:640px){
+  :root{--tray-h:210px}
+  .ctl{margin-left:0;width:100%}
+  input[type=search]{flex:1}
+  .slot{height:64px;flex-direction:column;justify-content:center;gap:2px;padding:4px}
+  .slot img{height:40px;width:40px}
+  .slot .t{text-align:center;width:100%}
+  .total{align-items:flex-start;margin-left:0}
+  .tray-in{gap:10px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .parts{grid-template-columns:1fr}
+  .buy{flex-direction:column;align-items:stretch}
+}
+@media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Build your Axie team</h1>
+    <p>Pick any 3 Axies from my collection. The total updates as you go. When you're happy with your team, copy the order message and send it to me on Facebook Messenger.</p>
+    <ul class="steps">
+      <li><b>1.</b> Tap an Axie to add it</li>
+      <li><b>2.</b> Fill all 3 slots</li>
+      <li><b>3.</b> Copy the order and message me</li>
+    </ul>
+  </header>
+
+  <section class="owner" id="ownerBar" hidden aria-label="Seller controls">
+    <p id="ownerText"><b>Seller view.</b> Only you see this. Set a peso price for each Axie, mark sold ones, then save. Buyers see the saved prices.</p>
+    <button class="btn ghost" type="button" id="editToggle">Edit prices</button>
+    <div class="bulk" id="bulk" hidden>
+      <label for="bulkPrice">Set every unpriced Axie to ₱</label>
+      <input type="number" id="bulkPrice" min="0" step="1" inputmode="numeric" style="width:100px">
+      <button class="btn ghost" type="button" id="bulkApply">Apply</button>
+    </div>
+    <button class="btn" type="button" id="save" hidden disabled>Save on GitHub</button>
+    <div id="saveHelp" hidden style="width:100%;display:flex;flex-direction:column;gap:6px">
+      <p style="margin:0;font-size:13px">GitHub opened in a new tab. Select everything in the file there, paste your copied prices, then press <b>Commit changes</b>. Buyers see the new prices in about 1 to 2 minutes.</p>
+      <textarea id="saveText" rows="4" readonly aria-label="Prices file"></textarea>
+      <div><button class="btn ghost" type="button" id="copyAgain">Copy prices again</button></div>
+    </div>
+  </section>
+
+  <div class="controls">
+    <div class="chips" id="classChips" role="group" aria-label="Filter by class"></div>
+    <div class="ctl">
+      <input type="search" id="q" placeholder="Search name, part, or ID" aria-label="Search">
+      <select id="sort" aria-label="Sort">
+        <option value="price-asc">Price: low to high</option>
+        <option value="price-desc">Price: high to low</option>
+        <option value="speed-desc">Speed: fastest</option>
+        <option value="breeds-asc">Fewest breeds</option>
+        <option value="lv2-desc">Most level 2 parts</option>
+      </select>
+    </div>
+  </div>
+  <p class="count" id="count"></p>
+  <div class="grid" id="grid"></div>
+  <footer style="margin-top:28px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)">
+    <span id="syncNote"></span>
+    <button type="button" id="sellerLink" style="border:0;background:none;color:var(--muted);font:inherit;cursor:pointer;text-decoration:underline">Seller</button>
+  </footer>
+</div>
+
+<div class="tray" id="tray">
+  <div class="tray-in">
+    <div class="slots" id="slots"></div>
+    <div class="total">
+      <span class="lbl">Team total</span>
+      <span class="sum" id="sum">₱0</span>
+      <span class="note" id="note"></span>
+    </div>
+    <div class="tray-actions">
+      <button class="btn ghost" id="clear" type="button">Clear</button>
+      <button class="btn ghost" id="copy" type="button" disabled>Copy order</button>
+      <button class="btn" id="viewTeam" type="button" disabled>View team</button>
+    </div>
+  </div>
+  <div class="tray-in" id="msgWrap" hidden style="margin-top:8px"><textarea id="msg" rows="5" readonly aria-label="Order message"></textarea></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<dialog id="cardsDlg" aria-label="Battle cards"><div class="dlg-in" id="dlgBody"></div></dialog>
+<dialog id="teamDlg" aria-label="My team">
+  <div class="sheet-bar"><span>Take a screenshot and send it to me on Messenger.</span><button class="btn ghost" type="button" id="teamClose">Close</button></div>
+  <div class="sheet" id="sheet"></div>
+</dialog>
+
+
+<script>
+(async () => {
+  const get = p => fetch(p + "?v=" + Date.now(), { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(p); return r.json(); });
+  try {
+    const [axies, prices, cards, lv2, meta] = await Promise.all([get("data/axies.json"), get("data/prices.json"), get("data/cards.json"), get("data/cards-lv2.json"), get("data/meta.json").catch(() => ({}))]);
+    window.AXIES = axies; window.PRICES = prices; window.CARDS = cards; window.CARDS_LV2 = lv2; window.SYNC = meta;
+  } catch (e) {
+    document.getElementById("grid").innerHTML = '<p class="count">Couldn&#39;t load the Axies. Refresh the page to try again.</p>';
+    return;
+  }
+  const s = document.createElement("script"); s.src = "app.js?v=" + Date.now(); document.body.appendChild(s);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+{
+ "beast-back-08": {
+  "a": 110,
+  "d": 25,
+  "e": 1,
+  "t": "Deal 100% extra damage if this is your only Axie remaining.",
+  "src": "S8 sheet"
+ },
+ "aquatic-mouth-08": {
+  "a": 120,
+  "d": 20,
+  "e": 1,
+  "t": "Deal 10% extra damage for each alive non-Aquatic teammate.",
+  "src": "S8 sheet"
+ },
+ "aquatic-horn-10": {
+  "a": 120,
+  "d": 20,
+  "e": 1,
+  "t": "Apply fragile to targets (including the initial attack) for 1 round.",
+  "src": "S8 sheet"
+ },
+ "bug-back-10": {
+  "a": 60,
+  "d": 45,
+  "e": 1,
+  "t": "Apply Regen+ to this axie.",
+  "src": "S8 sheet"
+ },
+ "beast-horn-08": {
+  "a": 125,
+  "d": 20,
+  "e": 1,
+  "t": "Deal 10% additional damage for each allied Bug Axie.",
+  "src": "S8 sheet"
+ },
+ "plant-horn-10": {
+  "a": 110,
+  "d": 20,
+  "e": 1,
+  "t": "Deal 120% damage if target has more HP than this Axie.",
+  "src": "S8 sheet"
+ },
+ "reptile-back-10": {
+  "a": 10,
+  "d": 145,
+  "e": 1,
+  "t": "Double the shield if this is your only Axie remaining.",
+  "src": "S8 sheet"
+ },
+ "bird-mouth-10": {
+  "a": 30,
+  "d": 0,
+  "e": 1,
+  "t": "Target the enemy with the lowest HP.",
+  "src": "S8 sheet"
+ },
+ "bird-mouth-08": {
+  "a": 130,
+  "d": 20,
+  "e": 1,
+  "t": "Deal 10% additional damage for each opponent Bug Axie.",
+  "src": "S8 sheet"
+ },
+ "plant-mouth-08": {
+  "a": 75,
+  "d": 75,
+  "e": 1,
+  "t": "Deal 20% more damage for each comboed Plant card.",
+  "src": "S8 sheet"
+ },
+ "plant-back-12": {
+  "a": 0,
+  "d": 130,
+  "e": 1,
+  "t": "Opponent discard a card if this Axie's Shield doesn't break this round",
+  "src": "S8 sheet"
+ },
+ "aquatic-back-06": {
+  "a": 130,
+  "d": 35,
+  "e": 1,
+  "t": "Apply Speed- to this Axie for 2 rounds when attacked.",
+  "src": "S6/S7 image"
+ },
+ "aquatic-tail-02": {
+  "a": 140,
+  "d": 30,
+  "e": 1,
+  "t": "Apply Speed- to this Axie for 2 rounds when attacked.",
+  "src": "S6/S7 image"
+ },
+ "aquatic-mouth-04": {
+  "a": 90,
+  "d": 25,
+  "e": 1,
+  "t": "Ignore shield. Target cannot heal for 2 rounds. This debuff can't be removed.",
+  "src": "S6/S7 image"
+ },
+ "beast-mouth-02": {
+  "a": 105,
+  "d": 30,
+  "e": 1,
+  "t": "Gain energy when chained with another 'Nut Cracker' card.",
+  "src": "S6/S7 image"
+ },
+ "beast-mouth-04": {
+  "a": 130,
+  "d": 25,
+  "e": 1,
+  "t": "Apply Attack- on target.",
+  "src": "S6/S7 image"
+ },
+ "plant-back-02": {
+  "a": 60,
+  "d": 70,
+  "e": 1,
+  "t": "Deal 50% damage to the ally behind the target, if there is one.",
+  "src": "S6/S7 image"
+ },
+ "plant-horn-02": {
+  "a": 120,
+  "d": 20,
+  "e": 1,
+  "t": "Deal 10% additional damage for each allied Plant Axie.",
+  "src": "S6/S7 image"
+ },
+ "plant-horn-04": {
+  "a": 105,
+  "d": 20,
+  "e": 1,
+  "t": "Deal 150% damage if this Axie's shield does not break.",
+  "src": "S6/S7 image"
+ },
+ "plant-tail-04": {
+  "a": 40,
+  "d": 10,
+  "e": 0,
+  "t": "Draw a card when attacking a Beast, Bug, or Mech target.",
+  "src": "S6/S7 image"
+ },
+ "plant-tail-06": {
+  "a": 60,
+  "d": 80,
+  "e": 1,
+  "t": "Stun attacker when struck by ranged cards. Can only trigger once per round.",
+  "src": "S6/S7 image"
+ },
+ "bird-back-06": {
+  "a": 100,
+  "d": 20,
+  "e": 1,
+  "t": "Target the highest HP enemy Axie when comboed with 2 or more cards.",
+  "src": "S6/S7 image"
+ }
+}
