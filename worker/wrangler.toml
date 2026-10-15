@@ -1,0 +1,10 @@
+name = "axie-shop"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# kv_namespaces is filled in after `wrangler kv namespace create SHOP`
+
+[[kv_namespaces]]
+binding = "SHOP"
+id = "0482e02b20a544b5a8a931d023c3e0dd"

@@ -205,12 +205,13 @@ textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px soli
       <input type="number" id="bulkPrice" min="0" step="1" inputmode="numeric" style="width:100px">
       <button class="btn ghost" type="button" id="bulkApply">Apply</button>
     </div>
-    <button class="btn" type="button" id="save" hidden disabled>Save on GitHub</button>
-    <div id="saveHelp" hidden style="width:100%;display:flex;flex-direction:column;gap:6px">
-      <p style="margin:0;font-size:13px">GitHub opened in a new tab. Select everything in the file there, paste your copied prices, then press <b>Commit changes</b>. Buyers see the new prices in about 1 to 2 minutes.</p>
-      <textarea id="saveText" rows="4" readonly aria-label="Prices file"></textarea>
-      <div><button class="btn ghost" type="button" id="copyAgain">Copy prices again</button></div>
-    </div>
+    <button class="btn" type="button" id="save" hidden disabled>Save</button>
+    <form id="pwForm" hidden style="width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <label for="pw" style="font-size:13px;font-weight:700">Seller password</label>
+      <input type="password" id="pw" autocomplete="current-password" style="flex:1 1 200px;min-width:0;font:600 13px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px">
+      <button class="btn" type="submit">Save</button>
+      <span id="pwMsg" style="font-size:13px;color:var(--warn);width:100%"></span>
+    </form>
   </section>
 
   <div class="controls">
@@ -262,7 +263,9 @@ textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px soli
 (async () => {
   const get = p => fetch(p + "?v=" + Date.now(), { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(p); return r.json(); });
   try {
-    const [axies, prices, cards, lv2, meta] = await Promise.all([get("data/axies.json"), get("data/prices.json"), get("data/cards.json"), get("data/cards-lv2.json"), get("data/meta.json").catch(() => ({}))]);
+    window.PRICE_STORE = "https://axie-shop.beaconp413.workers.dev";
+    const prices = await fetch(window.PRICE_STORE + "/prices", { cache: "no-store" }).then(r => r.ok ? r.json() : Promise.reject()).catch(() => get("data/prices.json"));
+    const [axies, cards, lv2, meta] = await Promise.all([get("data/axies.json"), get("data/cards.json"), get("data/cards-lv2.json"), get("data/meta.json").catch(() => ({}))]);
     window.AXIES = axies; window.PRICES = prices; window.CARDS = cards; window.CARDS_LV2 = lv2; window.SYNC = meta;
   } catch (e) {
     document.getElementById("grid").innerHTML = '<p class="count">Couldn&#39;t load the Axies. Refresh the page to try again.</p>';

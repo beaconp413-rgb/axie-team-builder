@@ -243,32 +243,44 @@ $("#bulkApply").addEventListener("click", () => {
   markDirty(); renderGrid(); toast(`Set ${n} Axies to ${peso(v)}.`);
 });
 
-/* ---------- seller mode: edit here, save through GitHub (only the repo owner can commit) ---------- */
-const GH = { owner: "beaconp413-rgb", repo: "axie-team-builder", path: "data/prices.json" };
-const ghEditUrl = `https://github.com/${GH.owner}/${GH.repo}/edit/main/${GH.path}`;
+/* ---------- seller mode: one-tap save to the price store (password-protected) ---------- */
+const STORE = window.PRICE_STORE;
+let sellerPw = null; // kept only while this page is open, never stored
 function pricesJson(){
   const out = {};
   AXIES.forEach(a => { if (priced(a) || a.sold) out[a.id] = { price: priced(a) ? a.price : null, sold: !!a.sold }; });
-  return JSON.stringify(out, null, 1) + "\n";
+  return JSON.stringify(out);
 }
 function showSeller(){
   $("#ownerBar").hidden = false;
   const unpriced = AXIES.filter(a => !priced(a)).length;
-  $("#ownerText").innerHTML = `<b>Seller mode.</b> ${unpriced ? `${unpriced} Axie${unpriced === 1 ? " has" : "s have"} no price yet. ` : ""}Set prices and mark sold Axies, then press <b>Save on GitHub</b>. Only your GitHub account can save, so buyers can't change anything.`;
+  $("#ownerText").innerHTML = `<b>Seller mode.</b> ${unpriced ? `${unpriced} Axie${unpriced === 1 ? " has" : "s have"} no price yet. ` : ""}Set prices and mark sold Axies, then press <b>Save</b>. Buyers see changes right away.`;
 }
 $("#sellerLink").addEventListener("click", () => { if ($("#ownerBar").hidden) { showSeller(); $("#ownerBar").scrollIntoView({ behavior: "smooth" }); } else $("#ownerBar").hidden = true; });
 if (location.hash === "#seller") showSeller();
-$("#save").addEventListener("click", async () => {
-  const text = pricesJson();
-  $("#saveText").value = text;
-  $("#saveHelp").hidden = false;
-  try { await navigator.clipboard.writeText(text); toast("Prices copied. Paste them on GitHub and commit."); }
-  catch (e) { $("#saveText").select(); toast("Copy the prices below, then paste them on GitHub."); }
-  window.open(ghEditUrl, "_blank", "noopener");
-  dirty = false;
+
+async function savePrices(){
+  const btn = $("#save"); btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    const r = await fetch(STORE + "/prices", { method: "PUT", headers: { "Content-Type": "application/json", "X-Seller-Password": sellerPw }, body: pricesJson() });
+    if (r.status === 401) { sellerPw = null; $("#pwForm").hidden = false; $("#pwMsg").textContent = "Wrong password. Try again."; $("#pw").focus(); btn.textContent = "Save"; btn.disabled = false; return; }
+    if (!r.ok) throw new Error(r.status);
+    dirty = false; btn.textContent = "Saved"; $("#pwForm").hidden = true; $("#pwMsg").textContent = "";
+    toast("Prices saved. Buyers see them now.");
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "Save";
+    toast("Couldn't save. Check your internet, then press Save again.");
+  }
+}
+$("#save").addEventListener("click", () => {
+  if (!STORE) { toast("Saving isn't set up yet."); return; }
+  if (!sellerPw) { $("#pwForm").hidden = false; $("#pw").focus(); return; }
+  savePrices();
 });
-$("#copyAgain").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText($("#saveText").value); toast("Copied."); } catch (e) { $("#saveText").select(); }
+$("#pwForm").addEventListener("submit", e => {
+  e.preventDefault();
+  sellerPw = $("#pw").value; $("#pw").value = "";
+  if (sellerPw) savePrices();
 });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 if (window.SYNC && window.SYNC.syncedAt) $("#syncNote").textContent = "Axie list updated " + new Date(window.SYNC.syncedAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
