@@ -201,6 +201,16 @@ textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px soli
   .ed input[type=number]{font-size:14px;padding:6px 8px}
   .stamp{font-size:9px;top:5px;left:5px}
 }
+/* desktops and laptops only (wide screen + mouse/trackpad, so tablets keep their layout): 6 Axies per row */
+@media (min-width:1200px) and (hover:hover) and (pointer:fine){
+  .wrap,.tray-in{max-width:1480px}
+  .grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+  .card{padding:10px;min-width:0}
+  .name{font-size:15px}
+  .parts{grid-template-columns:1fr}
+  .buy{flex-wrap:wrap}
+  .buy .btn{flex:1 1 auto}
+}
 @media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
 </style>
 
