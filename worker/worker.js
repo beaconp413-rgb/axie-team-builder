@@ -2,7 +2,8 @@
 // GET  /prices  -> public price list {id: {price, sold}}
 // PUT  /prices  -> replace the list; needs header X-Seller-Password = SELLER_PASSWORD secret
 // POST /login   -> 204 if the password is right, 401 if not
-// POST /sync    -> starts the GitHub wallet sync now (password; GITHUB_TOKEN secret can only run this repo's Actions)
+// POST /sync    -> reads the wallet from the Axie API now and stores it (password)
+// GET  /wallet  -> the latest wallet snapshot saved by /sync
 const ORIGINS = ["https://beaconp413-rgb.github.io"];
 
 function cors(req) {
@@ -41,6 +42,23 @@ function clean(body) {
   return Object.keys(out).length <= 2000 ? out : null;
 }
 
+const WALLET = "0xe8a963a82a739e18319b89ac5d85971b0808a108";
+const QUERY = `query($o:String!,$f:Int!){ axies(owner:$o, from:$f, size:100){ total results{ id name class breedCount bodyShape
+  stats{hp speed skill morale} parts{ name class type stage abilities{ id name attack defense energy description backgroundUrl } } } } }`;
+async function fetchWallet() {
+  const out = [];
+  for (let from = 0; ; from += 100) {
+    const r = await fetch("https://graphql-gateway.axieinfinity.com/graphql", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: QUERY, variables: { o: WALLET, f: from } }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const page = (await r.json()).data.axies;
+    out.push(...page.results);
+    if (from + 100 >= page.total) return out;
+  }
+}
+
 export default {
   async fetch(req, env) {
     const h = cors(req);
@@ -56,19 +74,28 @@ export default {
       return (await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))
         ? new Response(null, { status: 204, headers: h }) : json({ error: "wrong password" }, 401);
     }
+    if (pathname === "/wallet" && req.method === "GET") {
+      return new Response((await env.SHOP.get("wallet")) || "{}", { headers: { ...h, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+    }
     if (pathname === "/sync" && req.method === "POST") {
       if (!(await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))) return json({ error: "wrong password" }, 401);
-      if (!env.GITHUB_TOKEN) return json({ error: "sync not set up" }, 503);
-      const last = Number((await env.SHOP.get("lastSync")) || 0);
-      if (Date.now() - last < 60000) return json({ ok: true, note: "already syncing" });
-      const r = await fetch("https://api.github.com/repos/beaconp413-rgb/axie-team-builder/actions/workflows/sync.yml/dispatches", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + env.GITHUB_TOKEN, "Accept": "application/vnd.github+json", "User-Agent": "axie-shop-worker", "X-GitHub-Api-Version": "2022-11-28" },
-        body: JSON.stringify({ ref: "main" }),
-      });
-      if (!r.ok) return json({ error: "github " + r.status }, 502);
-      await env.SHOP.put("lastSync", String(Date.now()));
-      return json({ ok: true });
+      const prev = JSON.parse((await env.SHOP.get("wallet")) || "{}");
+      if (prev.syncedAt && Date.now() - Date.parse(prev.syncedAt) < 30000) return json({ ok: true, count: prev.axies.length, note: "just synced" });
+      let raw;
+      try { raw = await fetchWallet(); } catch (e) { return json({ error: "axie api: " + e.message }, 502); }
+      if (!raw.length) return json({ error: "axie api returned no axies" }, 502);
+      const cards = {};
+      const axies = raw.map(a => ({
+        id: a.id, name: (a.name || "").trim() || "Axie #" + a.id, cls: a.class, breeds: a.breedCount, shape: a.bodyShape, stats: a.stats,
+        parts: a.parts.map(p => {
+          const ab = p.abilities && p.abilities[0];
+          if (ab) cards[ab.id] = { n: ab.name, a: ab.attack, d: ab.defense, e: ab.energy, t: ab.description, img: ab.backgroundUrl };
+          return [p.type, p.name, p.class, p.stage, ab ? ab.id : null];
+        }),
+      }));
+      const wallet = { syncedAt: new Date().toISOString(), axies, cards };
+      await env.SHOP.put("wallet", JSON.stringify(wallet));
+      return json({ ok: true, count: axies.length });
     }
     if (pathname === "/prices" && req.method === "PUT") {
       if (!(await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))) return json({ error: "wrong password" }, 401);

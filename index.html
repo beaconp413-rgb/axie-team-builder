@@ -284,8 +284,13 @@ textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px soli
   try {
     window.PRICE_STORE = "https://axie-shop.beaconp413.workers.dev";
     const prices = await fetch(window.PRICE_STORE + "/prices", { cache: "no-store" }).then(r => r.ok ? r.json() : Promise.reject()).catch(() => get("data/prices.json"));
-    const [axies, cards, lv2, meta] = await Promise.all([get("data/axies.json"), get("data/cards.json"), get("data/cards-lv2.json"), get("data/meta.json").catch(() => ({}))]);
-    window.AXIES = axies; window.PRICES = prices; window.CARDS = cards; window.CARDS_LV2 = lv2; window.SYNC = meta;
+    const [axies, cards, lv2, meta, wallet] = await Promise.all([get("data/axies.json"), get("data/cards.json"), get("data/cards-lv2.json"), get("data/meta.json").catch(() => ({})),
+      fetch(window.PRICE_STORE + "/wallet", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).catch(() => ({}))]);
+    // "Sync now" saves a fresh wallet snapshot in the price store; use it when it's newer than the scheduled sync
+    const fresh = wallet.syncedAt && wallet.axies && (!meta.syncedAt || Date.parse(wallet.syncedAt) > Date.parse(meta.syncedAt));
+    window.AXIES = fresh ? wallet.axies : axies; window.PRICES = prices; window.CARDS_LV2 = lv2;
+    window.CARDS = fresh ? Object.assign({}, wallet.cards, cards) : cards;
+    window.SYNC = fresh ? { syncedAt: wallet.syncedAt } : meta;
   } catch (e) {
     document.getElementById("grid").innerHTML = '<p class="count">Couldn&#39;t load the Axies. Refresh the page to try again.</p>';
     return;

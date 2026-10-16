@@ -280,19 +280,18 @@ $("#save").addEventListener("click", () => {
   savePrices();
 });
 async function syncNow(){
-  const btn = $("#syncNow"); btn.disabled = true; btn.textContent = "Starting…";
+  const btn = $("#syncNow"); btn.disabled = true; btn.textContent = "Syncing…";
   try {
     const r = await fetch(STORE + "/sync", { method: "POST", headers: { "X-Seller-Password": sellerPw } });
     if (r.status === 401) { sellerPw = null; $("#pwMsg").textContent = "Wrong password. Try again."; btn.disabled = false; btn.textContent = "Sync now"; return askPw(syncNow); }
-    if (r.status === 503) throw new Error("not set up");
     if (!r.ok) throw new Error(r.status);
     $("#pwForm").hidden = true; $("#pwMsg").textContent = "";
-    btn.textContent = "Syncing…";
-    toast("Sync started. Refresh in about 2 minutes to see new Axies.");
-    setTimeout(() => { btn.disabled = false; btn.textContent = "Sync now"; }, 60000);
+    const j = await r.json();
+    toast(`Synced: ${j.count} Axies in your wallet. Reloading…`);
+    setTimeout(() => location.reload(), 1500);
   } catch (e) {
     btn.disabled = false; btn.textContent = "Sync now";
-    toast(e.message === "not set up" ? "Sync now isn't connected yet. The automatic sync still runs every 15 to 30 minutes." : "Couldn't start the sync. Try again in a minute.");
+    toast("Couldn't sync right now. Try again in a minute. The automatic sync still runs every 15 to 30 minutes.");
   }
 }
 $("#syncNow").addEventListener("click", () => {
