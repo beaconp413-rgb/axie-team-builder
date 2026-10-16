@@ -179,9 +179,27 @@ textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px soli
   .slot .t{text-align:center;width:100%}
   .total{align-items:flex-start;margin-left:0}
   .tray-in{gap:10px}
-  .grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
-  .parts{grid-template-columns:1fr}
-  .buy{flex-direction:column;align-items:stretch}
+  /* phones: always 2 Axies per row, compact cards */
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .card{padding:8px;gap:6px;border-radius:12px;min-width:0}
+  .card .art{border-radius:8px}
+  .top{flex-direction:column;align-items:flex-start;gap:3px}
+  .name{font-size:13px}
+  .id{font-size:10px}
+  .cls{font-size:9px;padding:2px 5px}
+  .meta{gap:2px 6px;font-size:10px}
+  .parts{grid-template-columns:1fr;gap:2px}
+  .part{font-size:10.5px;gap:4px}
+  .part i{width:6px;height:6px}
+  .lv2{font-size:8px;padding:0 3px}
+  .cardsbtn{align-self:stretch;font-size:11px;padding:6px 8px}
+  .buy{flex-direction:column;align-items:stretch;gap:6px;padding-top:6px}
+  .price{font-size:15px}
+  .price.none{font-size:11px}
+  .buy .btn{font-size:12px;padding:8px 6px;white-space:normal}
+  .ed .peso{font-size:14px}
+  .ed input[type=number]{font-size:14px;padding:6px 8px}
+  .stamp{font-size:9px;top:5px;left:5px}
 }
 @media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
 </style>
