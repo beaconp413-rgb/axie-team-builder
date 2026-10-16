@@ -254,7 +254,7 @@ function pricesJson(){
 function showSeller(){
   $("#ownerBar").hidden = false;
   const unpriced = AXIES.filter(a => !priced(a)).length;
-  $("#ownerText").innerHTML = `<b>Seller mode.</b> ${unpriced ? `${unpriced} Axie${unpriced === 1 ? " has" : "s have"} no price yet. ` : ""}Set prices and mark sold Axies, then press <b>Save</b>. Buyers see changes right away.`;
+  $("#ownerText").innerHTML = `<b>Seller mode.</b> ${unpriced ? `${unpriced} Axie${unpriced === 1 ? " has" : "s have"} no price yet. ` : ""}Set prices and mark sold Axies, then press <b>Save</b>. Buyers see changes right away. Just bought or sold an Axie? Press <b>Sync now</b>.`;
 }
 $("#sellerLink").addEventListener("click", () => { if ($("#ownerBar").hidden) { showSeller(); $("#ownerBar").scrollIntoView({ behavior: "smooth" }); } else $("#ownerBar").hidden = true; });
 if (location.hash === "#seller") showSeller();
@@ -263,7 +263,7 @@ async function savePrices(){
   const btn = $("#save"); btn.disabled = true; btn.textContent = "Saving…";
   try {
     const r = await fetch(STORE + "/prices", { method: "PUT", headers: { "Content-Type": "application/json", "X-Seller-Password": sellerPw }, body: pricesJson() });
-    if (r.status === 401) { sellerPw = null; $("#pwForm").hidden = false; $("#pwMsg").textContent = "Wrong password. Try again."; $("#pw").focus(); btn.textContent = "Save"; btn.disabled = false; return; }
+    if (r.status === 401) { sellerPw = null; $("#pwForm").hidden = false; $("#pwMsg").textContent = "Wrong password. Try again."; btn.textContent = "Save"; btn.disabled = false; return askPw(savePrices); }
     if (!r.ok) throw new Error(r.status);
     dirty = false; btn.textContent = "Saved"; $("#pwForm").hidden = true; $("#pwMsg").textContent = "";
     toast("Prices saved. Buyers see them now.");
@@ -272,15 +272,38 @@ async function savePrices(){
     toast("Couldn't save. Check your internet, then press Save again.");
   }
 }
+let pendingAction = null;
+function askPw(action){ pendingAction = action; $("#pwForm").hidden = false; $("#pw").focus(); }
 $("#save").addEventListener("click", () => {
   if (!STORE) { toast("Saving isn't set up yet."); return; }
-  if (!sellerPw) { $("#pwForm").hidden = false; $("#pw").focus(); return; }
+  if (!sellerPw) return askPw(savePrices);
   savePrices();
+});
+async function syncNow(){
+  const btn = $("#syncNow"); btn.disabled = true; btn.textContent = "Starting…";
+  try {
+    const r = await fetch(STORE + "/sync", { method: "POST", headers: { "X-Seller-Password": sellerPw } });
+    if (r.status === 401) { sellerPw = null; $("#pwMsg").textContent = "Wrong password. Try again."; btn.disabled = false; btn.textContent = "Sync now"; return askPw(syncNow); }
+    if (r.status === 503) throw new Error("not set up");
+    if (!r.ok) throw new Error(r.status);
+    $("#pwForm").hidden = true; $("#pwMsg").textContent = "";
+    btn.textContent = "Syncing…";
+    toast("Sync started. Refresh in about 2 minutes to see new Axies.");
+    setTimeout(() => { btn.disabled = false; btn.textContent = "Sync now"; }, 60000);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "Sync now";
+    toast(e.message === "not set up" ? "Sync now isn't connected yet. The automatic sync still runs every 15 to 30 minutes." : "Couldn't start the sync. Try again in a minute.");
+  }
+}
+$("#syncNow").addEventListener("click", () => {
+  if (!STORE) return;
+  if (!sellerPw) return askPw(syncNow);
+  syncNow();
 });
 $("#pwForm").addEventListener("submit", e => {
   e.preventDefault();
   sellerPw = $("#pw").value; $("#pw").value = "";
-  if (sellerPw) savePrices();
+  if (sellerPw) (pendingAction || savePrices)();
 });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 if (window.SYNC && window.SYNC.syncedAt) $("#syncNote").textContent = "Axie list updated " + new Date(window.SYNC.syncedAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });

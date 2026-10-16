@@ -2,6 +2,7 @@
 // GET  /prices  -> public price list {id: {price, sold}}
 // PUT  /prices  -> replace the list; needs header X-Seller-Password = SELLER_PASSWORD secret
 // POST /login   -> 204 if the password is right, 401 if not
+// POST /sync    -> starts the GitHub wallet sync now (password; GITHUB_TOKEN secret can only run this repo's Actions)
 const ORIGINS = ["https://beaconp413-rgb.github.io"];
 
 function cors(req) {
@@ -54,6 +55,20 @@ export default {
     if (pathname === "/login" && req.method === "POST") {
       return (await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))
         ? new Response(null, { status: 204, headers: h }) : json({ error: "wrong password" }, 401);
+    }
+    if (pathname === "/sync" && req.method === "POST") {
+      if (!(await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))) return json({ error: "wrong password" }, 401);
+      if (!env.GITHUB_TOKEN) return json({ error: "sync not set up" }, 503);
+      const last = Number((await env.SHOP.get("lastSync")) || 0);
+      if (Date.now() - last < 60000) return json({ ok: true, note: "already syncing" });
+      const r = await fetch("https://api.github.com/repos/beaconp413-rgb/axie-team-builder/actions/workflows/sync.yml/dispatches", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + env.GITHUB_TOKEN, "Accept": "application/vnd.github+json", "User-Agent": "axie-shop-worker", "X-GitHub-Api-Version": "2022-11-28" },
+        body: JSON.stringify({ ref: "main" }),
+      });
+      if (!r.ok) return json({ error: "github " + r.status }, 502);
+      await env.SHOP.put("lastSync", String(Date.now()));
+      return json({ ok: true });
     }
     if (pathname === "/prices" && req.method === "PUT") {
       if (!(await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))) return json({ error: "wrong password" }, 401);
