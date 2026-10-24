@@ -290,7 +290,9 @@ textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px soli
 
 <script>
 (async () => {
-  const get = p => fetch(p + "?v=" + Date.now(), { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(p); return r.json(); });
+  // one retry: a single dropped request on a weak phone connection shouldn't blank the shop
+  const get1 = p => fetch(p + "?v=" + Date.now(), { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(p); return r.json(); });
+  const get = p => get1(p).catch(() => new Promise(ok => setTimeout(ok, 800)).then(() => get1(p)));
   try {
     window.PRICE_STORE = "https://axie-shop.beaconp413.workers.dev";
     const prices = await fetch(window.PRICE_STORE + "/prices", { cache: "no-store" }).then(r => r.ok ? r.json() : Promise.reject()).catch(() => get("data/prices.json"));

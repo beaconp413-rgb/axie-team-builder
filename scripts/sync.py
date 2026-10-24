@@ -14,7 +14,9 @@ from PIL import Image
 
 WALLET = "0xe8a963a82a739e18319b89ac5d85971b0808a108"
 API = "https://graphql-gateway.axieinfinity.com/graphql"
-QUERY = """{ axies(owner:"%s", from:%d, size:100){ total results{ id name class breedCount bodyShape
+# sort is required: without it the API's paging order shifts between pages,
+# so some Axies come back twice and others are skipped
+QUERY = """{ axies(owner:"%s", from:%d, size:100, sort: IdAsc){ total results{ id name class breedCount bodyShape
   stats{hp speed skill morale}
   parts{ name class type stage abilities{ id name attack defense energy description backgroundUrl } } } } }"""
 
@@ -39,7 +41,12 @@ def fetch_axies():
 
 
 def thumb(url, path, size):
-    im = Image.open(io.BytesIO(curl(url)))
+    # a missing image must not stop the sync; the site falls back to the CDN
+    try:
+        im = Image.open(io.BytesIO(curl(url)))
+    except Exception as e:  # noqa: BLE001
+        print("No image yet:", url, e)
+        return
     im.thumbnail((size, size))
     im.save(path, optimize=True)
 
@@ -56,8 +63,12 @@ def main():
 
     with open("data/cards.json") as f:
         cards = json.load(f)
-    axies = []
+    axies, seen = [], set()
     for a in raw:
+        # skip repeats and unhatched eggs (no class or parts yet); eggs show up once they hatch
+        if a["id"] in seen or not a["class"] or not a["parts"]:
+            continue
+        seen.add(a["id"])
         parts = []
         for p in a["parts"]:
             ab = p["abilities"][0] if p["abilities"] else None

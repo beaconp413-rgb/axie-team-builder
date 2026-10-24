@@ -43,7 +43,8 @@ function clean(body) {
 }
 
 const WALLET = "0xe8a963a82a739e18319b89ac5d85971b0808a108";
-const QUERY = `query($o:String!,$f:Int!){ axies(owner:$o, from:$f, size:100){ total results{ id name class breedCount bodyShape
+// sort is required: without it the API's paging order shifts between pages (repeats and skipped Axies)
+const QUERY = `query($o:String!,$f:Int!){ axies(owner:$o, from:$f, size:100, sort: IdAsc){ total results{ id name class breedCount bodyShape
   stats{hp speed skill morale} parts{ name class type stage abilities{ id name attack defense energy description backgroundUrl } } } } }`;
 async function fetchWallet() {
   const out = [];
@@ -84,8 +85,9 @@ export default {
       let raw;
       try { raw = await fetchWallet(); } catch (e) { return json({ error: "axie api: " + e.message }, 502); }
       if (!raw.length) return json({ error: "axie api returned no axies" }, 502);
-      const cards = {};
-      const axies = raw.map(a => ({
+      const cards = {}, seen = new Set();
+      // skip repeats and unhatched eggs (no class or parts yet)
+      const axies = raw.filter(a => a.class && a.parts && a.parts.length && !seen.has(a.id) && seen.add(a.id)).map(a => ({
         id: a.id, name: (a.name || "").trim() || "Axie #" + a.id, cls: a.class, breeds: a.breedCount, shape: a.bodyShape, stats: a.stats,
         parts: a.parts.map(p => {
           const ab = p.abilities && p.abilities[0];

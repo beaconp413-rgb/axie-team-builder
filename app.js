@@ -1,14 +1,17 @@
 
 const PRICES = window.PRICES || {};
-let AXIES = (window.AXIES || []).map(a => ({ ...a, price: PRICES[a.id]?.price ?? null, sold: !!PRICES[a.id]?.sold }));
+const seenIds = new Set();
+// drop repeats and unhatched eggs (no class or parts) so a bad sync can't double or break the grid
+let AXIES = (window.AXIES || []).filter(a => a && a.cls && a.parts && a.parts.length && a.stats && !seenIds.has(a.id) && seenIds.add(a.id)).map(a => ({ ...a, price: PRICES[a.id]?.price ?? null, sold: !!PRICES[a.id]?.sold }));
 const byId = () => Object.fromEntries(AXIES.map(a => [a.id, a]));
 const CLASS_ORDER = ["Aquatic","Plant","Bird","Beast","Bug","Reptile","Dawn","Dusk","Mech"];
 const classes = CLASS_ORDER.filter(c => AXIES.some(a => a.cls === c));
 const cv = c => `var(--c-${c}, var(--muted))`;
 const peso = n => "₱" + Math.round(n).toLocaleString("en-PH");
-const img = id => `img/${id}.png`;
 const imgFull = id => `https://axiecdn.axieinfinity.com/axies/${id}/axie/axie-full-transparent.png`;
-document.addEventListener("error", e => { const t = e.target; if (t.tagName === "IMG" && t.dataset.ax && !t.dataset.fb) { t.dataset.fb = 1; t.src = imgFull(t.dataset.ax); } }, true);
+const noThumb = new Set(); // ids with no local thumbnail yet; go straight to the CDN on later renders
+const img = id => noThumb.has(id) ? imgFull(id) : `img/${id}.png`;
+document.addEventListener("error", e => { const t = e.target; if (t.tagName === "IMG" && t.dataset.ax && !t.dataset.fb) { t.dataset.fb = 1; noThumb.add(t.dataset.ax); t.src = imgFull(t.dataset.ax); } }, true);
 const priced = a => typeof a.price === "number" && a.price > 0;
 const available = a => priced(a) && !a.sold;
 const CARDS = window.CARDS || {};
@@ -170,7 +173,7 @@ function renderSheet(){
       </div>`).join("")}</div>
     <div class="sheet-foot">I want to buy this team · ${peso(total)} for 3 Axies</div>`;
 }
-$("#viewTeam").addEventListener("click", () => { if (team.length < 3) return; renderSheet(); teamDlg.showModal(); teamDlg.scrollTop = 0; });
+$("#viewTeam").addEventListener("click", () => { if (team.length < 3) return; renderSheet(); if (!teamDlg.open) teamDlg.showModal(); teamDlg.scrollTop = 0; });
 $("#teamClose").addEventListener("click", () => teamDlg.close());
 $("#sheet").addEventListener("click", e => {
   const b = e.target.closest("[data-mv]"); if (!b) return;
@@ -189,7 +192,7 @@ function showCards(id){
     <div class="bcards">${cards || '<p class="dlg-note">No card data for this Axie.</p>'}</div>
     <p class="dlg-note">Axie Classic cards. Energy is the number in the top-left circle. Lv2 marks an evolved part.</p>`;
   $("#dlgClose").addEventListener("click", () => dlg.close());
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
 }
 dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
 
