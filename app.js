@@ -18,6 +18,10 @@ const CARDS = window.CARDS || {};
 const lv2 = a => a.parts.filter(p => p[3] === 2).length;
 
 let team = [];
+const ACCOUNT_FEE = 100;
+let noAccount = false;
+try { noAccount = localStorage.getItem("axieNoAccount") === "1"; } catch(e) {}
+const acctFee = () => noAccount ? ACCOUNT_FEE : 0;
 try { const m = byId(); team = JSON.parse(localStorage.getItem("axieTeam") || "[]").filter(id => m[id] && available(m[id])).slice(0,3); } catch(e) {}
 let activeClass = null, editing = false, dirty = false;
 
@@ -90,8 +94,9 @@ function renderTray(){
     if (!a) return `<div class="slot"><span class="empty">Slot ${i+1}<br>empty</span></div>`;
     return `<div class="slot full"><img data-ax="${a.id}" src="${img(a.id)}" alt=""><div class="t"><b>${esc(a.name)}</b><span style="color:${cv(a.cls)};font-weight:700">${a.cls}</span> · ${peso(a.price)}</div><button class="x" type="button" data-rm="${a.id}" aria-label="Remove ${esc(a.name)}">×</button></div>`;
   }).join("");
-  const total = team.reduce((s,id) => s + m[id].price, 0);
+  const total = team.reduce((s,id) => s + m[id].price, 0) + (team.length ? acctFee() : 0);
   $("#sum").textContent = peso(total);
+  document.querySelectorAll("[data-acct]").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.acct === "no") === noAccount)));
   $("#note").textContent = team.length === 0 ? "Pick 3 Axies" : team.length < 3 ? `${3-team.length} more to pick` : "Team complete";
   $("#copy").disabled = team.length === 0;
   $("#viewTeam").disabled = team.length < 3;
@@ -102,7 +107,8 @@ function renderTray(){
 function orderText(){
   const m = byId();
   const lines = team.map((id,i) => { const a = m[id]; return `${i+1}. ${a.name} (#${a.id}, ${a.cls}) - ${peso(a.price)}`; });
-  const total = team.reduce((s,id) => s + m[id].price, 0);
+  if (noAccount) lines.push(`+ New Axie account (I don't have one) - ${peso(ACCOUNT_FEE)}`);
+  const total = team.reduce((s,id) => s + m[id].price, 0) + acctFee();
   return `Hi! I'd like to buy this Axie team:\n${lines.join("\n")}\nTotal: ${peso(total)}`;
 }
 
@@ -148,12 +154,12 @@ const POS = ["Front", "Middle", "Back"];
 function renderSheet(){
   const m = byId();
   const mem = team.map(id => m[id]);
-  const total = mem.reduce((s,a) => s + a.price, 0);
+  const total = mem.reduce((s,a) => s + a.price, 0) + acctFee();
   const date = new Date().toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
   $("#sheet").innerHTML = `
     <div class="sheet-head">
       <div><h2>My Axie Team</h2><div class="date">${date} · ${mem.map(a => "#" + a.id).join(" · ")}</div></div>
-      <div class="sheet-total"><span class="lbl">Team total</span><span class="sum">${peso(total)}</span></div>
+      <div class="sheet-total"><span class="lbl">Team total</span><span class="sum">${peso(total)}</span>${noAccount ? `<span class="lbl">incl. ${peso(ACCOUNT_FEE)} new account</span>` : ""}</div>
     </div>
     <div class="lineup">${mem.map((a,i) => `
       <div class="mem">
@@ -171,8 +177,14 @@ function renderSheet(){
         <div class="who"><span class="cls" style="background:${cv(a.cls)}">${POS[i]}</span><b>${esc(a.name)}</b><span class="id">#${a.id}</span></div>
         <div class="bcards">${cardsHtml(a, true)}</div>
       </div>`).join("")}</div>
-    <div class="sheet-foot">I want to buy this team · ${peso(total)} for 3 Axies</div>`;
+    <div class="sheet-foot">I want to buy this team · ${peso(total)} for 3 Axies${noAccount ? " + new Axie account" : ""}</div>`;
 }
+document.querySelectorAll("[data-acct]").forEach(b => b.addEventListener("click", () => {
+  noAccount = b.dataset.acct === "no";
+  try { localStorage.setItem("axieNoAccount", noAccount ? "1" : "0"); } catch(e) {}
+  renderTray();
+  if (noAccount) toast(`Added ${peso(ACCOUNT_FEE)} so I can make you an Axie account.`);
+}));
 $("#viewTeam").addEventListener("click", () => { if (team.length < 3) return; renderSheet(); if (!teamDlg.open) teamDlg.showModal(); teamDlg.scrollTop = 0; });
 $("#teamClose").addEventListener("click", () => teamDlg.close());
 $("#sheet").addEventListener("click", e => {
