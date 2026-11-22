@@ -55,7 +55,7 @@ r = await call("POST", `/order/${code}/paid`, {}); assert(r.status === 400, "no 
 r = await call("POST", `/order/${code}/paid`, shot("application/pdf")); assert(r.status === 400, "non-image refused");
 r = await call("POST", `/order/${code}/paid`, shot("image/png", 6 * 1024 * 1024)); assert(r.status === 413, "huge image refused");
 r = await call("POST", `/order/${code}/paid`, shot()); assert(r.status === 200 && r.body.status === "checking", "screenshot accepted -> checking");
-assert(tgCalls.at(-1)[0] === "sendPhoto" && tgCalls.at(-1)[1].caption.includes("₱800") && tgCalls.at(-1)[1].photo, "seller got the screenshot in Telegram with ₱800 and buttons");
+assert(tgCalls.at(-1)[0] === "sendPhoto" && tgCalls.at(-1)[1].caption.includes("₱800") && tgCalls.at(-1)[1].caption.includes("Juan Dela Cruz") && tgCalls.at(-1)[1].photo, "seller got the screenshot in Telegram with ₱800 and buttons");
 assert(kv.get("receipt:" + code), "receipt copy kept");
 
 r = await tap("send:" + code, SELLER, "wrong"); assert(r.status === 401, "webhook with wrong secret refused");
@@ -98,7 +98,8 @@ await tap("ok:" + c4); await tap("send:" + c4); await Promise.all(waits);
 assert(order(c4).status === "problem" && /doesn't match/.test(order(c4).note) && sent.length === 2, "wrong key -> problem, nothing sent");
 // /pending re-sends a receipt that never reached Telegram
 kv.delete("rl:1.1.1.1"); kv.set("store-prices", JSON.stringify({ "555": { price: 50, sold: false } })); owners["555"] = env.STORE_WALLET;
-r = await call("POST", "/order", { ids: ["555"], ronin: buyer }); const c5 = r.body.code;
+r = await call("POST", "/order", { ids: ["555"], ronin: buyer }); assert(r.status === 400 && /name/.test(r.body.error), "order without a name refused");
+r = await call("POST", "/order", { ids: ["555"], ronin: buyer, name: "Ana" }); const c5 = r.body.code;
 env.TG_TOKEN = ""; await call("POST", `/order/${c5}/paid`, shot()); env.TG_TOKEN = "x"; assert(order(c5).tgError && !order(c5).tg, "Telegram down: order kept, error noted");
 const before = tgCalls.length;
 await handleOrders({ method: "POST", url: "https://w.dev/tg", headers: new Headers({ "X-Telegram-Bot-Api-Secret-Token": "sec" }), json: async () => ({ message: { text: "/pending", chat: { id: SELLER }, from: { id: SELLER } } }) }, env, ctx, json, async () => false);
