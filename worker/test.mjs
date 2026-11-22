@@ -109,4 +109,16 @@ assert(tgCalls.slice(before).some(c => c[0] === "sendPhoto" && c[1].caption.incl
   kv.set("store-prices", JSON.stringify({ "777": { price: 90, sold: true }, "888": { price: 90, sold: true } })); owners["777"] = env.STORE_WALLET; owners["888"] = buyer;
   const n = await restock(env, [{ id: 777 }, { id: 888 }]); const p = JSON.parse(kv.get("store-prices"));
   assert(n === 1 && !p["777"] && p["888"].sold, "returned Axie loses its old price; one that left stays sold"); }
+// shop closed: browse only, no new orders; Telegram /close and /open from the seller only
+{ const msg = (text, from = SELLER) => handleOrders({ method: "POST", url: "https://w.dev/tg", headers: new Headers({ "X-Telegram-Bot-Api-Secret-Token": "sec" }), json: async () => ({ message: { text, chat: { id: from }, from: { id: from } } }) }, env, ctx, json, async () => false);
+  kv.delete("rl:1.1.1.1"); kv.set("store-prices", JSON.stringify({ "999": { price: 40, sold: false } })); owners["999"] = env.STORE_WALLET;
+  await msg("/close", 12345); assert(!kv.get("shop-closed"), "stranger can't close the shop");
+  await msg("/close"); r = await call("GET", "/config"); assert(r.body.closed === true, "/close closes the shop");
+  r = await call("POST", "/order", { ids: ["999"], ronin: buyer, name: "Ana" }); assert(r.status === 403 && r.body.closed, "closed shop refuses new orders");
+  await msg("/open"); r = await call("GET", "/config"); assert(r.body.closed === false, "/open opens the shop");
+  r = await call("POST", "/order", { ids: ["999"], ronin: buyer, name: "Ana" }); assert(r.status === 200, "open shop takes orders again");
+  const pw = (ok, body) => handleOrders({ method: "POST", url: "https://w.dev/shop-open", headers: new Headers(), json: async () => body }, env, ctx, json, async () => ok);
+  r = await pw(false, { open: false }); assert(r.status === 401 && !kv.get("shop-closed"), "seller-bar toggle needs the password");
+  r = await pw(true, { open: false }); assert(r.body.closed && kv.get("shop-closed"), "seller-bar toggle closes the shop");
+  await pw(true, { open: true }); }
 console.log("ALL PASSED");

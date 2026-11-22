@@ -5,7 +5,8 @@
 // GET  /order/<code>        -> order status (the buyer's page polls this)
 // POST /order/<code>/paid   multipart "receipt" = screenshot of the GCash receipt -> sent to the seller's Telegram with Approve/Reject
 // GET  /gcash-qr            -> the seller's GCash QR image (KV "gcash-qr")
-// GET  /config              -> {checkout, test}; CHECKOUT var: "off" | "test" (only #test links show it) | "on"
+// POST /shop-open {open}    -> open/close checkout (seller password). Telegram: /close, /open
+// GET  /config              -> {checkout, test, closed}; CHECKOUT var: "off" | "test" (only #test links show it) | "on"
 // POST /tg                  -> Telegram webhook (button taps); only TG_CHAT_ID may approve
 // POST /tg-setup            -> points the Telegram bot (TG_TOKEN) at /tg
 //
@@ -95,6 +96,7 @@ function publicOrder(o, gcash) {
 
 async function createOrder(req, env) {
   if (env.CHECKOUT !== "on" && env.CHECKOUT !== "test") return [403, { error: "Checkout is closed right now. Tap Copy order and message me instead." }];
+  if (await isClosed(env)) return [403, { error: "The shop is closed right now. You can still look around. Checkout opens again soon.", closed: true }];
   let body; try { body = await req.json(); } catch { return [400, { error: "Bad request." }]; }
   const ip = req.headers.get("CF-Connecting-IP") || "unknown";
   const rlKey = "rl:" + ip, tries = +(await env.SHOP.get(rlKey) || 0);
@@ -243,6 +245,17 @@ async function onTelegram(req, env, ctx) {
       }
       await tg(env, "sendMessage", { chat_id: u.message.chat.id, text: n ? `Re-sent ${n} order(s) waiting for approval.` : "No orders are waiting for approval." }).catch(() => {});
     }
+    // seller only: /close and /open the shop (e.g. at bedtime)
+    const cmd = (u.message.text || "").trim().toLowerCase();
+    if (/^\/(close|open|shop)\b/.test(cmd) && env.TG_CHAT_ID && String(u.message.from.id) === String(env.TG_CHAT_ID)) {
+      if (cmd.startsWith("/close")) await setClosed(env, true);
+      if (cmd.startsWith("/open")) await setClosed(env, false);
+      const closed = await isClosed(env);
+      await tg(env, "sendMessage", { chat_id: u.message.chat.id, text: closed
+        ? "🌙 Shop is CLOSED. Buyers can look at the Axies but can't check out. Orders already placed still come to you. Send /open to open."
+        : "✅ Shop is OPEN. Buyers can check out with GCash. Send /close to close." }).catch(() => {});
+      return new Response("ok");
+    }
     // seller typed a custom reject reason (after tapping "Type my own reason")
     const txt = (u.message.text || "").trim();
     if (txt && !txt.startsWith("/") && env.TG_CHAT_ID && String(u.message.from.id) === String(env.TG_CHAT_ID)) {
@@ -300,6 +313,13 @@ async function onTelegram(req, env, ctx) {
     ctx.waitUntil(deliver(env, o, o.txs ? count : count + 1));
   } else await answer("");
   return new Response("ok");
+}
+
+// Shop open/closed: when closed, buyers can browse but new orders are refused. Orders already placed still finish.
+const isClosed = async env => !!(await getJson(env, "shop-closed", null));
+async function setClosed(env, closed) {
+  if (closed) await env.SHOP.put("shop-closed", JSON.stringify({ at: new Date().toISOString() }));
+  else await env.SHOP.delete("shop-closed");
 }
 
 async function rejectOrder(env, o, reason) {
@@ -368,7 +388,13 @@ export async function restock(env, axies) {
 
 export async function handleOrders(req, env, ctx, json, checkPw) {
   const { pathname } = new URL(req.url);
-  if (pathname === "/config" && req.method === "GET") return json({ checkout: env.CHECKOUT === "on", test: env.CHECKOUT === "test" });
+  if (pathname === "/config" && req.method === "GET") return json({ checkout: env.CHECKOUT === "on", test: env.CHECKOUT === "test", closed: await isClosed(env) });
+  if (pathname === "/shop-open" && req.method === "POST") {
+    if (!(await checkPw(req))) return json({ error: "wrong password" }, 401);
+    let b; try { b = await req.json(); } catch { return json({ error: "bad json" }, 400); }
+    await setClosed(env, !b.open);
+    return json({ ok: true, closed: !b.open });
+  }
   if (pathname === "/order" && req.method === "POST") { const [s, b] = await createOrder(req, env); return json(b, s); }
   const m = pathname.match(/^\/order\/([A-Z2-9]{8})(\/paid)?$/);
   if (m) {
