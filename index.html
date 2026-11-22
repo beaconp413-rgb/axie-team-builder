@@ -174,6 +174,47 @@ dialog#teamDlg::backdrop{background:rgba(10,14,11,.7)}
 .acct-b:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tray-actions{display:flex;gap:8px;align-items:center}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tray-h) + 16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:10px;font-weight:600;font-size:13px;z-index:6;max-width:calc(100% - 32px)}
+/* Checkout: buyer pays GCash, seller approves in Telegram, the bot sends the Axies */
+#checkout{font-size:14px;padding:9px 16px}
+dialog#payDlg{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);padding:0;width:min(480px,calc(100% - 24px));max-height:calc(100% - 24px)}
+dialog#payDlg::backdrop{background:rgba(10,14,11,.6)}
+.pay{padding:18px;display:flex;flex-direction:column;gap:14px}
+.pay-head{display:flex;align-items:flex-start;gap:10px}
+.pay-head h2{font-family:var(--display);font-weight:800;font-size:22px;margin:0;line-height:1.15;flex:1;min-width:0}
+.pay-head .x{border:0;background:var(--sunk);color:var(--ink);border-radius:8px;font-size:18px;width:34px;height:34px;cursor:pointer;flex:none}
+.pay-items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.pay-items li{display:flex;justify-content:space-between;gap:10px;font-size:14px}
+.pay-items li b{font-variant-numeric:tabular-nums}
+.pay-total{display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--line);padding-top:8px;font-weight:700}
+.pay-total .big{font:700 28px var(--mono);font-variant-numeric:tabular-nums}
+.pay label.f{display:flex;flex-direction:column;gap:5px;font:700 13px var(--body)}
+.pay label.f span.h{font-weight:500;font-size:12px;color:var(--muted)}
+.pay input[type=text]{font:600 15px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+.pay input.mono{font-family:var(--mono);font-size:14px}
+.pay .chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.35}
+.pay .chk input{margin-top:2px;width:18px;height:18px;flex:none}
+.pay .btn{padding:12px 16px;font-size:15px}
+.pay .btn[disabled]{opacity:.5;cursor:not-allowed}
+.pay .err{color:var(--warn);font-weight:700;font-size:13px;margin:0}
+.pay .note{font-size:13px;color:var(--muted);margin:0;line-height:1.45}
+.pay .qr{align-self:center;width:min(240px,70vw);aspect-ratio:1;object-fit:contain;background:#fff;border-radius:12px;border:1px solid var(--line)}
+.pay .gc{background:var(--sunk);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.pay .gc .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.pay .gc .num{font:700 16px var(--mono)}
+.pay .timer{font:700 13px var(--mono);color:var(--warn)}
+.pay .state{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:8px 0}
+.pay .state .ic{font-size:42px;line-height:1}
+.pay .state h3{font-family:var(--display);font-size:20px;margin:0}
+.pay .addr{font:600 12px var(--mono);overflow-wrap:anywhere;background:var(--sunk);border-radius:8px;padding:6px 8px}
+.pay a{color:var(--accent);font-weight:700}
+.pay .spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.pay .spin{animation:none}}
+.order-bar{position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:7;background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:8px 16px;font:700 13px var(--body);cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+@media (max-width:640px){
+  .tray-actions{flex-wrap:wrap;width:100%}
+  #checkout{flex:1 1 100%;order:-1}
+}
 textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);padding:8px}
 @media (max-width:640px){
   :root{--tray-h:245px}
@@ -287,11 +328,14 @@ textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px soli
       <button class="btn ghost" id="clear" type="button">Clear</button>
       <button class="btn ghost" id="copy" type="button" disabled>Copy order</button>
       <button class="btn" id="viewTeam" type="button" disabled>View team</button>
+      <button class="btn" id="checkout" type="button" hidden disabled>Checkout · Pay with GCash</button>
     </div>
   </div>
   <div class="tray-in" id="msgWrap" hidden style="margin-top:8px"><textarea id="msg" rows="5" readonly aria-label="Order message"></textarea></div>
 </div>
 <div class="toast" id="toast" hidden></div>
+<button class="order-bar" id="orderBar" type="button" hidden></button>
+<dialog id="payDlg" aria-label="Checkout"><div class="pay" id="payBody"></div></dialog>
 <dialog id="cardsDlg" aria-label="Battle cards"><div class="dlg-in" id="dlgBody"></div></dialog>
 <dialog id="teamDlg" aria-label="My team">
   <div class="sheet-bar"><span>Take a screenshot and send it to me on Messenger.</span><button class="btn ghost" type="button" id="teamClose">Close</button></div>
@@ -306,9 +350,17 @@ textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px soli
   const get = p => get1(p).catch(() => new Promise(ok => setTimeout(ok, 800)).then(() => get1(p)));
   try {
     window.PRICE_STORE = "https://axie-shop.beaconp413.workers.dev";
+    const cfgP = fetch(window.PRICE_STORE + "/config", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
     const prices = await fetch(window.PRICE_STORE + "/prices", { cache: "no-store" }).then(r => r.ok ? r.json() : Promise.reject()).catch(() => get("data/prices.json"));
     const [axies, cards, lv2, meta, wallet] = await Promise.all([get("data/axies.json"), get("data/cards.json"), get("data/cards-lv2.json"), get("data/meta.json").catch(() => ({})),
       fetch(window.PRICE_STORE + "/wallet", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).catch(() => ({}))]);
+    const cfg = await cfgP;
+    window.CHECKOUT = !!cfg.checkout || (!!cfg.test && location.hash.includes("test"));
+    if (cfg.test && location.hash.includes("test")) {
+      // test link: also list the store wallet's Axies so they can be ordered before go-live
+      const st = await fetch(window.PRICE_STORE + "/store-axies", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+      if (st.axies) { const have = new Set(window.AXIES.map(a => a.id)); window.AXIES = st.axies.filter(a => !have.has(a.id)).concat(window.AXIES); Object.assign(window.CARDS, st.cards); }
+    }
     // "Sync now" saves a fresh wallet snapshot in the price store; use it when it's newer than the scheduled sync
     const fresh = wallet.syncedAt && wallet.axies && (!meta.syncedAt || Date.parse(wallet.syncedAt) > Date.parse(meta.syncedAt));
     window.AXIES = fresh ? wallet.axies : axies; window.PRICES = prices; window.CARDS_LV2 = lv2;
