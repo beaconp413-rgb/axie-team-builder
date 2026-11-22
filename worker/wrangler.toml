@@ -19,3 +19,6 @@ STORE_WALLET = "0x64386aad85ecb4b8f5c7e6718482c86891b22049"
 # "on" shows the Checkout button and accepts orders
 CHECKOUT = "test"
 MAX_SENT_PER_DAY = "20"
+
+[triggers]
+crons = ["*/15 * * * *"]

@@ -106,8 +106,8 @@ async function createOrder(req, env) {
   if (ronin === env.STORE_WALLET.toLowerCase() || ronin === env.LIST_WALLET.toLowerCase()) return [400, { error: "Enter your own Ronin address." }];
   const name = String(body.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
 
-  const prices = await getJson(env, "prices", {});
-  const wallet = await getJson(env, "wallet", {});
+  const prices = await getJson(env, "store-prices", {});
+  const wallet = await getJson(env, "store-wallet", {});
   const names = Object.fromEntries((wallet.axies || []).map(a => [a.id, a.name]));
   const items = [];
   for (const id of ids) {
@@ -257,9 +257,9 @@ async function deliver(env, o, dayCount) {
     for (let i = 0; i < 6 && Object.values(o.txs).some(t => !t.ok); i++) { await sleep(2500); await refresh(env, o); }
     await saveOrder(env, o);
     if (o.status === "sent") {
-      const prices = await getJson(env, "prices", {});
+      const prices = await getJson(env, "store-prices", {});
       for (const it of o.items) if (prices[it.id]) prices[it.id].sold = true;
-      await env.SHOP.put("prices", JSON.stringify(prices));
+      await env.SHOP.put("store-prices", JSON.stringify(prices));
       await releaseHolds(env, o.code);
       await env.SHOP.put("sent:" + phDay(), String(dayCount), { expirationTtl: 3 * 86400 });
     }

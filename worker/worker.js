@@ -82,19 +82,23 @@ export default {
     const json = (data, status = 200) =>
       new Response(JSON.stringify(data), { status, headers: { ...h, "Content-Type": "application/json", "Cache-Control": "no-store" } });
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: h });
-    const { pathname } = new URL(req.url);
+    const url = new URL(req.url);
+    // "/store/..." = the separate Axie Store site (store wallet, its own prices); everything else = the original shop
+    const store = url.pathname.startsWith("/store/");
+    const pathname = store ? url.pathname.slice(6) : url.pathname;
+    const K = store ? { prices: "store-prices", wallet: "store-wallet", owner: env.STORE_WALLET } : { prices: "prices", wallet: "wallet", owner: env.LIST_WALLET };
     const orderRes = await handleOrders(req, env, ctx, json, r => sameSecret(r.headers.get("X-Seller-Password"), env.SELLER_PASSWORD));
     if (orderRes) return orderRes;
 
     if (pathname === "/prices" && req.method === "GET") {
-      return new Response((await env.SHOP.get("prices")) || "{}", { headers: { ...h, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      return new Response((await env.SHOP.get(K.prices)) || "{}", { headers: { ...h, "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
     if (pathname === "/login" && req.method === "POST") {
       return (await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))
         ? new Response(null, { status: 204, headers: h }) : json({ error: "wrong password" }, 401);
     }
     if (pathname === "/wallet" && req.method === "GET") {
-      return new Response((await env.SHOP.get("wallet")) || "{}", { headers: { ...h, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      return new Response((await env.SHOP.get(K.wallet)) || "{}", { headers: { ...h, "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
     // test mode only: the store wallet's Axies, so #test links can order them before go-live
     if (pathname === "/store-axies" && req.method === "GET" && env.CHECKOUT === "test") {
@@ -102,14 +106,14 @@ export default {
     }
     if (pathname === "/sync" && req.method === "POST") {
       if (!(await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))) return json({ error: "wrong password" }, 401);
-      const prev = JSON.parse((await env.SHOP.get("wallet")) || "{}");
+      const prev = JSON.parse((await env.SHOP.get(K.wallet)) || "{}");
       if (prev.syncedAt && Date.now() - Date.parse(prev.syncedAt) < 30000) return json({ ok: true, count: prev.axies.length, note: "just synced" });
       let raw;
-      try { raw = await fetchWallet(env); } catch (e) { return json({ error: "axie api: " + e.message }, 502); }
-      if (!raw.length) return json({ error: "axie api returned no axies" }, 502);
+      try { raw = await fetchWallet(env, K.owner); } catch (e) { return json({ error: "axie api: " + e.message }, 502); }
+      if (!raw.length && !store) return json({ error: "axie api returned no axies" }, 502);
       const { axies, cards } = shape(raw);
       const wallet = { syncedAt: new Date().toISOString(), axies, cards };
-      await env.SHOP.put("wallet", JSON.stringify(wallet));
+      await env.SHOP.put(K.wallet, JSON.stringify(wallet));
       return json({ ok: true, count: axies.length });
     }
     if (pathname === "/prices" && req.method === "PUT") {
@@ -119,9 +123,14 @@ export default {
       let body; try { body = JSON.parse(text); } catch { return json({ error: "bad json" }, 400); }
       const data = clean(body);
       if (!data) return json({ error: "bad price list" }, 400);
-      await env.SHOP.put("prices", JSON.stringify(data));
+      await env.SHOP.put(K.prices, JSON.stringify(data));
       return json({ ok: true, count: Object.keys(data).length });
     }
     return json({ error: "not found" }, 404);
+  },
+  // every 15 minutes: refresh the Axie Store's wallet snapshot (the original shop keeps its GitHub sync)
+  async scheduled(event, env) {
+    const { axies, cards } = shape(await fetchWallet(env, env.STORE_WALLET));
+    await env.SHOP.put("store-wallet", JSON.stringify({ syncedAt: new Date().toISOString(), axies, cards }));
   },
 };

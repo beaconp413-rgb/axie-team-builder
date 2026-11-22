@@ -13,7 +13,7 @@ const env = {
   CHECKOUT: "on", STORE_WALLET: store, LIST_WALLET: "0xe8a963a82a739e18319b89ac5d85971b0808a108", MAX_SENT_PER_DAY: "20",
   STORE_WALLET_KEY: key, TG_TOKEN: "x", TG_CHAT_ID: String(SELLER), TG_SECRET: "sec",
 };
-kv.set("prices", JSON.stringify({ "111": { price: 500, sold: false }, "222": { price: 300, sold: false }, "333": { price: 0, sold: false } }));
+kv.set("store-prices", JSON.stringify({ "111": { price: 500, sold: false }, "222": { price: 300, sold: false }, "333": { price: 0, sold: false } }));
 kv.set("gcash", JSON.stringify({ name: "M. K.", number: "09170000000", qr: true }));
 const owners = { "111": store, "222": store }, sent = [], tgCalls = [];
 globalThis.fetch = async (url, init) => {
@@ -55,12 +55,12 @@ assert(sent.length === 2 && order(code).status === "sent", "confirm -> 2 transfe
 { const tx = parseTransaction(sent[0]); const d = decodeFunctionData({ abi: parseAbi(["function safeTransferFrom(address,address,uint256)"]), data: tx.data });
   assert(tx.to === "0x32950db2a7164ae833121501c797d79e7b79d74c" && tx.chainId === 2020 && (await recoverTransactionAddress({ serializedTransaction: sent[0] })).toLowerCase() === store
     && d.args[0].toLowerCase() === store && d.args[1].toLowerCase() === buyer && d.args[2] === 111n, "signed tx: Axie contract, Ronin chain 2020, store -> buyer, Axie #111"); }
-assert(JSON.parse(kv.get("prices"))["111"].sold, "Axies marked sold");
+assert(JSON.parse(kv.get("store-prices"))["111"].sold, "Axies marked sold");
 assert(lastEdit().text.includes("✅ <b>Sent</b>"), "Telegram message updated to Sent");
 await tap("send:" + code); await Promise.all(waits); assert(sent.length === 2, "second tap doesn't send again");
 r = await call("POST", "/order", { ids: ["111"], ronin: buyer, name: "X" }); assert(r.status === 409, "sold Axie can't be ordered");
 
-kv.set("prices", JSON.stringify({ "444": { price: 100, sold: false } })); owners["444"] = store;
+kv.set("store-prices", JSON.stringify({ "444": { price: 100, sold: false } })); owners["444"] = store;
 r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "Y" }); const c2 = r.body.code;
 r = await call("POST", `/order/${c2}/paid`, { ref: "1012345678901" }); assert(r.status === 409, "same GCash ref can't be reused");
 await call("POST", `/order/${c2}/paid`, { ref: "2012345678901" }); await tap("no:" + c2);
