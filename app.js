@@ -331,7 +331,8 @@ const okRonin = s => { const v = String(s || "").trim().replace(/^ronin:/i, "0x"
 const roninShow = a => "ronin:" + a.slice(2);
 const remember = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch(e) {} };
 const recall = k => { try { return localStorage.getItem(k) || ""; } catch(e) { return ""; } };
-if (window.CHECKOUT) $("#checkout").hidden = false;
+if (window.CHECKOUT) { $("#checkout").hidden = false; document.body.classList.add("has-checkout"); }
+payBody.addEventListener("input", () => payBody.querySelectorAll(".err").forEach(e => e.textContent = ""));
 
 async function api(path, opts){
   const r = await fetch(STORE + path, { cache: "no-store", ...opts, headers: { "Content-Type": "application/json" } });
@@ -404,7 +405,7 @@ function showOrder(o){
       <div class="pay-total"><span>Send exactly</span><span class="big">${peso(o.total)}</span></div>
       ${g.qr ? `<img class="qr" src="${STORE}/gcash-qr" alt="GCash QR code to pay">` : ""}
       ${g.number ? `<div class="gc"><div class="row"><span>GCash name</span><b>${esc(g.name || "")}</b></div>
-        <div class="row"><span>GCash number</span><span><span class="num">${esc(g.number)}</span> <button class="btn ghost" type="button" data-copy="${esc(g.number)}">Copy</button></span></div></div>` : ""}
+        <span class="lbl">GCash number</span><div class="numrow"><span class="num">${esc(g.number)}</span><button class="btn ghost" type="button" data-copy="${esc(g.number)}">Copy number</button></div></div>` : ""}
       <p class="note">After paying, copy the <b>Ref. No.</b> from your GCash receipt and paste it below.</p>
       <form id="refForm" class="pay" style="padding:0" novalidate>
         <label class="f">GCash reference number<input type="text" class="mono" id="coRef" inputmode="numeric" maxlength="24" placeholder="13 digits"></label>

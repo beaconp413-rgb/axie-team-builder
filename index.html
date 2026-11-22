@@ -200,7 +200,10 @@ dialog#payDlg::backdrop{background:rgba(10,14,11,.6)}
 .pay .qr{align-self:center;width:min(240px,70vw);aspect-ratio:1;object-fit:contain;background:#fff;border-radius:12px;border:1px solid var(--line)}
 .pay .gc{background:var(--sunk);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 .pay .gc .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
-.pay .gc .num{font:700 16px var(--mono)}
+.pay .gc .num{font:700 16px var(--mono);white-space:nowrap}
+.pay .gc .numrow{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.pay .gc .btn{padding:6px 12px;font-size:13px}
+.pay .gc .lbl{font-size:12px;color:var(--muted)}
 .pay .timer{font:700 13px var(--mono);color:var(--warn)}
 .pay .state{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:8px 0}
 .pay .state .ic{font-size:42px;line-height:1}
@@ -214,6 +217,7 @@ dialog#payDlg::backdrop{background:rgba(10,14,11,.6)}
 @media (max-width:640px){
   .tray-actions{flex-wrap:wrap;width:100%}
   #checkout{flex:1 1 100%;order:-1}
+  body.has-checkout{--tray-h:300px}
 }
 textarea#msg{width:100%;font:12px var(--mono);border-radius:10px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);padding:8px}
 @media (max-width:640px){

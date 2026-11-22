@@ -7,7 +7,7 @@
 // GET  /gcash-qr            -> the seller's GCash QR image (KV "gcash-qr")
 // GET  /config              -> {checkout, test}; CHECKOUT var: "off" | "test" (only #test links show it) | "on"
 // POST /tg                  -> Telegram webhook (button taps); only TG_CHAT_ID may approve
-// POST /tg-setup            -> registers the webhook (seller password)
+// POST /tg-setup            -> points the Telegram bot (TG_TOKEN) at /tg
 //
 // Nothing here trusts the buyer: prices come from KV, ownership from the chain, and the payment is confirmed
 // only by the seller's own tap, sent from the seller's own Telegram account.
@@ -290,8 +290,8 @@ export async function handleOrders(req, env, ctx, json, checkPw) {
   }
   if (pathname === "/tg" && req.method === "POST") return onTelegram(req, env, ctx);
   if (pathname === "/tg-setup" && req.method === "POST") {
-    if (!(await checkPw(req))) return json({ error: "wrong password" }, 401);
-    const url = new URL(req.url); url.pathname = "/tg";
+    // harmless to repeat: it can only point the bot at this same Worker with this Worker's own secret
+    const url = new URL(req.url); url.pathname = "/tg"; url.search = "";
     try {
       await tg(env, "setWebhook", { url: url.toString(), secret_token: env.TG_SECRET, allowed_updates: ["message", "callback_query"] });
       return json({ ok: true });
