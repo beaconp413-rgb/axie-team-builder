@@ -3,7 +3,7 @@
 //
 // POST /order               {ids, ronin, name}  -> creates an order and holds the Axies for PAY_MINUTES
 // GET  /order/<code>        -> order status (the buyer's page polls this)
-// POST /order/<code>/paid   {ref}  -> buyer's GCash reference number; sends the seller a Telegram Approve/Reject message
+// POST /order/<code>/paid   multipart "receipt" = screenshot of the GCash receipt -> sent to the seller's Telegram with Approve/Reject
 // GET  /gcash-qr            -> the seller's GCash QR image (KV "gcash-qr")
 // GET  /config              -> {checkout, test}; CHECKOUT var: "off" | "test" (only #test links show it) | "on"
 // POST /tg                  -> Telegram webhook (button taps); only TG_CHAT_ID may approve
@@ -134,27 +134,41 @@ async function createOrder(req, env) {
   return [200, publicOrder(o, await getJson(env, "gcash", null))];
 }
 
+const MAX_RECEIPT = 5 * 1024 * 1024;
 async function markPaid(req, env, o) {
   if (o.status !== "awaiting_payment") return [409, { error: "This order can't take a payment anymore.", order: publicOrder(o) }];
-  let body; try { body = await req.json(); } catch { return [400, { error: "Bad request." }]; }
-  const ref = String(body.ref || "").replace(/\D/g, "");
-  if (ref.length < 10 || ref.length > 16) return [400, { error: "Type the reference number from your GCash receipt (13 digits)." }];
-  if (await env.SHOP.get("ref:" + ref)) return [409, { error: "This reference number was already used for another order. Message me if this is a mistake." }];
-  await env.SHOP.put("ref:" + ref, o.code, { expirationTtl: 365 * 86400 });
-  o.status = "checking"; o.ref = ref; o.paidAt = Date.now();
+  let file;
+  try { file = (await req.formData()).get("receipt"); } catch { return [400, { error: "Upload a screenshot of your GCash receipt." }]; }
+  if (!file || typeof file === "string" || !/^image\//.test(file.type) || !file.size) return [400, { error: "Upload a screenshot of your GCash receipt (a photo or image)." }];
+  if (file.size > MAX_RECEIPT) return [413, { error: "That image is too big. Take a normal screenshot and try again." }];
+  const img = await file.arrayBuffer();
+  // keep a copy, so the receipt isn't lost if Telegram is down
+  await env.SHOP.put("receipt:" + o.code, img, { expirationTtl: 180 * 86400, metadata: { type: file.type } });
+  o.status = "checking"; o.paidAt = Date.now(); o.receipt = true;
   await saveOrder(env, o);
   await setHolds(env, o.items.map(i => i.id), o.code, Date.now() + CHECK_HOURS * 3600e3);
-  try {
-    const m = await tg(env, "sendMessage", { chat_id: env.TG_CHAT_ID, text: tgText(o), parse_mode: "HTML", disable_web_page_preview: true, reply_markup: tgButtons(o) });
-    o.tg = { chat: m.chat.id, msg: m.message_id }; await saveOrder(env, o);
-  } catch (e) { o.tgError = String(e.message || e); await saveOrder(env, o); }
+  await sendReceipt(env, o, img, file.type);
   return [200, publicOrder(o)];
+}
+async function sendReceipt(env, o, img, type) {
+  try {
+    const fd = new FormData();
+    fd.append("chat_id", String(env.TG_CHAT_ID));
+    fd.append("photo", new Blob([img], { type }), "receipt." + ((type.split("/")[1] || "jpg").replace("jpeg", "jpg")));
+    fd.append("caption", tgText(o)); fd.append("parse_mode", "HTML");
+    fd.append("reply_markup", JSON.stringify(tgButtons(o)));
+    const m = await tg(env, "sendPhoto", fd);
+    o.tg = { chat: m.chat.id, msg: m.message_id, photo: true }; o.tgError = null;
+  } catch (e) { o.tgError = String(e.message || e); }
+  await saveOrder(env, o);
 }
 
 /* ---------- Telegram ---------- */
 async function tg(env, method, payload) {
   if (!env.TG_TOKEN) throw new Error("TG_TOKEN not set");
-  const r = await fetch(`https://api.telegram.org/bot${env.TG_TOKEN}/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const form = payload instanceof FormData;
+  const r = await fetch(`https://api.telegram.org/bot${env.TG_TOKEN}/${method}`, { method: "POST",
+    ...(form ? { body: payload } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }) });
   const j = await r.json();
   if (!j.ok) throw new Error(j.description || "telegram error");
   return j.result;
@@ -163,7 +177,7 @@ const short = a => a.slice(0, 8) + "…" + a.slice(-6);
 const txLink = h => `https://app.roninchain.com/tx/${h}`;
 function tgText(o) {
   const head = {
-    checking: "🛒 <b>New order — check your GCash</b>",
+    checking: "🛒 <b>New order — receipt above</b>",
     sending: "⏳ <b>Sending Axies…</b>",
     sent: "✅ <b>Sent</b>",
     rejected: "❌ <b>Rejected</b> — Axies are back on sale",
@@ -173,11 +187,11 @@ function tgText(o) {
     head, "",
     `Order <code>${o.code}</code> · <b>${peso(o.total)}</b>`,
     ...(o.name ? [`Buyer: ${html(o.name)}`] : []),
-    `GCash ref: <code>${o.ref}</code>`,
+    ...(o.ref ? [`GCash ref: <code>${o.ref}</code>`] : []),
     ...o.items.map(i => `• #${i.id} ${html(i.name)} — ${peso(i.price)}`),
     `Send to: <code>${o.ronin}</code>`,
   ];
-  if (o.status === "checking") lines.push("", `👉 Open GCash. Did you receive <b>${peso(o.total)}</b> with ref <b>${o.ref}</b>? Only then tap Approve.`);
+  if (o.status === "checking") lines.push("", `👉 Screenshots can be faked. Open YOUR GCash app: did <b>${peso(o.total)}</b> really arrive? Only then tap Approve.`);
   if (o.status === "sent") lines.push("", ...Object.entries(o.txs || {}).map(([id, t]) => `#${id}: <a href="${txLink(t.hash)}">transaction</a>`));
   if (o.status === "problem") lines.push("", "Error: " + html(o.note || "unknown"), ...Object.entries(o.txs || {}).map(([id, t]) => `#${id} sent: <a href="${txLink(t.hash)}">transaction</a>`), "Tap Retry to send what's left, or message the buyer.");
   return lines.join("\n");
@@ -190,7 +204,11 @@ function tgButtons(o, confirm) {
 }
 async function tgShow(env, o, confirm) {
   if (!o.tg) return;
-  try { await tg(env, "editMessageText", { chat_id: o.tg.chat, message_id: o.tg.msg, text: tgText(o), parse_mode: "HTML", disable_web_page_preview: true, reply_markup: tgButtons(o, confirm) }); } catch { /* message unchanged */ }
+  const body = { chat_id: o.tg.chat, message_id: o.tg.msg, parse_mode: "HTML", reply_markup: tgButtons(o, confirm) };
+  try {
+    if (o.tg.photo) await tg(env, "editMessageCaption", { ...body, caption: tgText(o) });
+    else await tg(env, "editMessageText", { ...body, text: tgText(o), disable_web_page_preview: true });
+  } catch { /* message unchanged */ }
 }
 
 async function onTelegram(req, env, ctx) {
@@ -199,6 +217,17 @@ async function onTelegram(req, env, ctx) {
   if (u.message) {
     // lets the seller find their chat ID during setup; harmless for anyone else
     if (/^\/(start|id)\b/.test(u.message.text || "")) await tg(env, "sendMessage", { chat_id: u.message.chat.id, text: `Your chat ID is ${u.message.chat.id}` }).catch(() => {});
+    // seller only: re-send receipts that never reached Telegram
+    if (/^\/pending\b/.test(u.message.text || "") && env.TG_CHAT_ID && String(u.message.from.id) === String(env.TG_CHAT_ID)) {
+      let n = 0;
+      for (const k of (await env.SHOP.list({ prefix: "order:" })).keys) {
+        const o = await getJson(env, k.name, null);
+        if (!o || o.status !== "checking") continue;
+        const r = await env.SHOP.getWithMetadata("receipt:" + o.code, "arrayBuffer");
+        if (r && r.value) { await sendReceipt(env, o, r.value, (r.metadata && r.metadata.type) || "image/jpeg"); n++; }
+      }
+      await tg(env, "sendMessage", { chat_id: u.message.chat.id, text: n ? `Re-sent ${n} order(s) waiting for approval.` : "No orders are waiting for approval." }).catch(() => {});
+    }
     return new Response("ok");
   }
   const cq = u.callback_query;
@@ -208,7 +237,7 @@ async function onTelegram(req, env, ctx) {
   const [act, code] = String(cq.data || "").split(":");
   const o = await getJson(env, "order:" + code, null);
   if (!o) { await answer("Order not found."); return new Response("ok"); }
-  if (!o.tg && cq.message) o.tg = { chat: cq.message.chat.id, msg: cq.message.message_id };
+  if (!o.tg && cq.message) o.tg = { chat: cq.message.chat.id, msg: cq.message.message_id, photo: !!cq.message.photo };
 
   if (act === "ok" || act === "back") {
     if (o.status !== "checking") { await answer("Already handled."); await tgShow(env, o); return new Response("ok"); }
