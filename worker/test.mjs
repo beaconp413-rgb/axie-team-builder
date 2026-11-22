@@ -97,5 +97,5 @@ assert(tgCalls.slice(before).some(c => c[0] === "sendPhoto" && c[1].caption.incl
 { const { restock } = await import("./orders.js");
   kv.set("store-prices", JSON.stringify({ "777": { price: 90, sold: true }, "888": { price: 90, sold: true } })); owners["777"] = env.STORE_WALLET; owners["888"] = buyer;
   const n = await restock(env, [{ id: 777 }, { id: 888 }]); const p = JSON.parse(kv.get("store-prices"));
-  assert(n === 1 && !p["777"].sold && p["888"].sold, "restock un-marks only Axies the store wallet really holds"); }
+  assert(n === 1 && !p["777"] && p["888"].sold, "returned Axie loses its old price; one that left stays sold"); }
 console.log("ALL PASSED");

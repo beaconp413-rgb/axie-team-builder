@@ -304,14 +304,15 @@ async function deliver(env, o, dayCount) {
 }
 
 /* ---------- router ---------- */
-// An Axie marked sold that is back in the store wallet (checked on-chain) is for sale again.
+// An Axie marked sold that is back in the store wallet (checked on-chain) loses its old price:
+// it shows again with no price until the seller sets one.
 export async function restock(env, axies) {
   const prices = JSON.parse((await env.SHOP.get("store-prices")) || "{}");
   const ids = axies.map(a => String(a.id)).filter(id => prices[id] && prices[id].sold);
   if (!ids.length) return 0;
   let n = 0;
   for (const id of ids) {
-    try { if ((await ownerOf(id)) === env.STORE_WALLET.toLowerCase()) { prices[id].sold = false; n++; } } catch {}
+    try { if ((await ownerOf(id)) === env.STORE_WALLET.toLowerCase()) { delete prices[id]; n++; } } catch {}
   }
   if (n) await env.SHOP.put("store-prices", JSON.stringify(prices));
   return n;
