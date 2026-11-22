@@ -5,7 +5,7 @@
 // POST /sync    -> reads the wallet from the Axie API now and stores it (password)
 // GET  /wallet  -> the latest wallet snapshot saved by /sync
 // Checkout routes (/order, /tg, /config, /gcash-qr) live in orders.js
-import { handleOrders } from "./orders.js";
+import { handleOrders, restock } from "./orders.js";
 const ORIGINS = ["https://beaconp413-rgb.github.io"];
 
 function cors(req) {
@@ -114,7 +114,8 @@ export default {
       const { axies, cards } = shape(raw);
       const wallet = { syncedAt: new Date().toISOString(), axies, cards };
       await env.SHOP.put(K.wallet, JSON.stringify(wallet));
-      return json({ ok: true, count: axies.length });
+      const restocked = store ? await restock(env, axies) : 0;
+      return json({ ok: true, count: axies.length, restocked });
     }
     if (pathname === "/prices" && req.method === "PUT") {
       if (!(await sameSecret(req.headers.get("X-Seller-Password"), env.SELLER_PASSWORD))) return json({ error: "wrong password" }, 401);
@@ -132,5 +133,6 @@ export default {
   async scheduled(event, env) {
     const { axies, cards } = shape(await fetchWallet(env, env.STORE_WALLET));
     await env.SHOP.put("store-wallet", JSON.stringify({ syncedAt: new Date().toISOString(), axies, cards }));
+    await restock(env, axies);
   },
 };

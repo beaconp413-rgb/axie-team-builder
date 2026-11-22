@@ -216,7 +216,11 @@ async function onTelegram(req, env, ctx) {
   const u = await req.json();
   if (u.message) {
     // lets the seller find their chat ID during setup; harmless for anyone else
-    if (/^\/(start|id)\b/.test(u.message.text || "")) await tg(env, "sendMessage", { chat_id: u.message.chat.id, text: `Your chat ID is ${u.message.chat.id}` }).catch(() => {});
+    if (/^\/(start|id)\b/.test(u.message.text || "")) {
+      await tg(env, "sendMessage", { chat_id: u.message.chat.id, text: `Your chat ID is ${u.message.chat.id}` }).catch(() => {});
+      // noted for setup only; approvals still need TG_CHAT_ID, which is set by hand
+      await env.SHOP.put("tg-last-start", JSON.stringify({ id: u.message.chat.id, name: [u.message.from.first_name, u.message.from.last_name].filter(Boolean).join(" "), user: u.message.from.username || null, at: new Date().toISOString() }));
+    }
     // seller only: re-send receipts that never reached Telegram
     if (/^\/pending\b/.test(u.message.text || "") && env.TG_CHAT_ID && String(u.message.from.id) === String(env.TG_CHAT_ID)) {
       let n = 0;
@@ -300,6 +304,19 @@ async function deliver(env, o, dayCount) {
 }
 
 /* ---------- router ---------- */
+// An Axie marked sold that is back in the store wallet (checked on-chain) is for sale again.
+export async function restock(env, axies) {
+  const prices = JSON.parse((await env.SHOP.get("store-prices")) || "{}");
+  const ids = axies.map(a => String(a.id)).filter(id => prices[id] && prices[id].sold);
+  if (!ids.length) return 0;
+  let n = 0;
+  for (const id of ids) {
+    try { if ((await ownerOf(id)) === env.STORE_WALLET.toLowerCase()) { prices[id].sold = false; n++; } } catch {}
+  }
+  if (n) await env.SHOP.put("store-prices", JSON.stringify(prices));
+  return n;
+}
+
 export async function handleOrders(req, env, ctx, json, checkPw) {
   const { pathname } = new URL(req.url);
   if (pathname === "/config" && req.method === "GET") return json({ checkout: env.CHECKOUT === "on", test: env.CHECKOUT === "test" });

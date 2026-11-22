@@ -93,4 +93,9 @@ env.TG_TOKEN = ""; await call("POST", `/order/${c5}/paid`, shot()); env.TG_TOKEN
 const before = tgCalls.length;
 await handleOrders({ method: "POST", url: "https://w.dev/tg", headers: new Headers({ "X-Telegram-Bot-Api-Secret-Token": "sec" }), json: async () => ({ message: { text: "/pending", chat: { id: SELLER }, from: { id: SELLER } } }) }, env, ctx, json, async () => false);
 assert(tgCalls.slice(before).some(c => c[0] === "sendPhoto" && c[1].caption.includes(c5)) && order(c5).tg, "/pending re-sent the receipt");
+// restock: sold Axie back in the store wallet is for sale again; one that left stays sold
+{ const { restock } = await import("./orders.js");
+  kv.set("store-prices", JSON.stringify({ "777": { price: 90, sold: true }, "888": { price: 90, sold: true } })); owners["777"] = env.STORE_WALLET; owners["888"] = buyer;
+  const n = await restock(env, [{ id: 777 }, { id: 888 }]); const p = JSON.parse(kv.get("store-prices"));
+  assert(n === 1 && !p["777"].sold && p["888"].sold, "restock un-marks only Axies the store wallet really holds"); }
 console.log("ALL PASSED");
