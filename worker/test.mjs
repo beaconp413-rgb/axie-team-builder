@@ -9,7 +9,7 @@ const key = generatePrivateKey(), store = privateKeyToAccount(key).address.toLow
 const buyer = "0x" + "ab".repeat(20), SELLER = 5550001;
 const kv = new Map();
 const env = {
-  SHOP: { get: async k => kv.has(k) ? kv.get(k) : null, put: async (k, v) => { kv.set(k, v); },
+  SHOP: { get: async k => kv.has(k) ? kv.get(k) : null, put: async (k, v) => { kv.set(k, v); }, delete: async k => { kv.delete(k); },
     getWithMetadata: async k => ({ value: kv.get(k) || null, metadata: { type: "image/png" } }),
     list: async ({ prefix }) => ({ keys: [...kv.keys()].filter(k => k.startsWith(prefix)).map(name => ({ name })) }) },
   CHECKOUT: "on", STORE_WALLET: store, LIST_WALLET: "0xe8a963a82a739e18319b89ac5d85971b0808a108", MAX_SENT_PER_DAY: "20",
@@ -75,7 +75,17 @@ kv.set("store-prices", JSON.stringify({ "444": { price: 100, sold: false } })); 
 r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "Y" }); const c2 = r.body.code;
 await call("POST", `/order/${c2}/paid`, shot()); r = await call("POST", `/order/${c2}/paid`, shot()); assert(r.status === 409, "can't upload twice");
 await tap("no:" + c2);
-assert(order(c2).status === "rejected" && !JSON.parse(kv.get("holds"))["444"], "reject releases the hold");
+assert(order(c2).status === "checking" && lastEdit().reply_markup.inline_keyboard.length === 5, "Reject first asks for a reason, nothing changes yet");
+await tap("back:" + c2); assert(order(c2).status === "checking" && lastEdit().reply_markup.inline_keyboard[0][0].text === "✅ Approve", "Back from reasons restores Approve/Reject");
+await tap("no:" + c2); await tap("rj:" + c2 + ":fake");
+assert(order(c2).status === "rejected" && /not real/.test(order(c2).reason) && !JSON.parse(kv.get("holds"))["444"], "reject with reason releases the hold");
+r = await call("GET", `/order/${c2}`); assert(r.body.reason && /not real/.test(r.body.reason), "buyer sees the reason");
+assert(lastEdit().reply_markup.inline_keyboard[0].map(b => b.text).join() === "✏️ Edit reason,↩️ Undo reject", "rejected message has Edit reason / Undo");
+await tap("no:" + c2); await tap("rj:" + c2 + ":own");
+await handleOrders({ method: "POST", url: "https://w.dev/tg", headers: new Headers({ "X-Telegram-Bot-Api-Secret-Token": "sec" }), json: async () => ({ message: { text: "Ref number does not exist in GCash", chat: { id: SELLER }, from: { id: SELLER } } }) }, env, ctx, json, async () => false);
+assert(order(c2).reason === "Ref number does not exist in GCash" && !kv.get("tg-reason-wait"), "typed reason saved as the new reason");
+await tap("un:" + c2); assert(order(c2).status === "checking" && !order(c2).reason && JSON.parse(kv.get("holds"))["444"].code === c2, "Undo reject: back to waiting, Axie held again");
+await tap("no:" + c2); await tap("rj:" + c2 + ":nr"); assert(order(c2).status === "rejected", "rejected again");
 
 r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "Z" }); const c3 = r.body.code;
 const o3 = order(c3); o3.payBy = Date.now() - 1; kv.set("order:" + c3, JSON.stringify(o3));

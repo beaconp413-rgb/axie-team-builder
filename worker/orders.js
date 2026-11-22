@@ -88,6 +88,7 @@ async function refresh(env, o) {
 function publicOrder(o, gcash) {
   const out = { code: o.code, status: o.status, items: o.items, total: o.total, ronin: o.ronin, name: o.name,
     payBy: o.payBy, ref: o.ref || null, txs: o.txs || {}, confirmed: !!o.confirmed, createdAt: o.createdAt };
+  if (o.status === "rejected" && o.reason) out.reason = o.reason;
   if (o.status === "awaiting_payment" && gcash) out.gcash = { name: gcash.name, number: gcash.number, qr: !!gcash.qr };
   return out;
 }
@@ -191,12 +192,21 @@ function tgText(o) {
     ...o.items.map(i => `• #${i.id} ${html(i.name)} — ${peso(i.price)}`),
     `Send to: <code>${o.ronin}</code>`,
   ];
+  if (o.status === "rejected") lines.push("", `Reason the buyer sees: <i>${html(o.reason || "(none)")}</i>`);
   if (o.status === "checking") lines.push("", `👉 Screenshots can be faked. Open YOUR GCash app: did <b>${peso(o.total)}</b> really arrive? Only then tap Approve.`);
   if (o.status === "sent") lines.push("", ...Object.entries(o.txs || {}).map(([id, t]) => `#${id}: <a href="${txLink(t.hash)}">transaction</a>`));
   if (o.status === "problem") lines.push("", "Error: " + html(o.note || "unknown"), ...Object.entries(o.txs || {}).map(([id, t]) => `#${id} sent: <a href="${txLink(t.hash)}">transaction</a>`), "Tap Retry to send what's left, or message the buyer.");
   return lines.join("\n");
 }
+const REASONS = { nr: "Payment not received in GCash", fake: "The receipt screenshot is not real or was edited", amt: "Wrong amount sent" };
 function tgButtons(o, confirm) {
+  if (confirm === "reasons") return { inline_keyboard: [
+    [{ text: "🚫 Payment not received", callback_data: `rj:${o.code}:nr` }],
+    [{ text: "🖼️ Fake / edited screenshot", callback_data: `rj:${o.code}:fake` }],
+    [{ text: "💸 Wrong amount", callback_data: `rj:${o.code}:amt` }],
+    [{ text: "✏️ Type my own reason", callback_data: `rj:${o.code}:own` }],
+    [{ text: "↩️ Back", callback_data: "back:" + o.code }]] };
+  if (o.status === "rejected") return { inline_keyboard: [[{ text: "✏️ Edit reason", callback_data: "no:" + o.code }, { text: "↩️ Undo reject", callback_data: "un:" + o.code }]] };
   if (o.status === "checking" && confirm) return { inline_keyboard: [[{ text: `✅ Yes, send to ${short(o.ronin)}`, callback_data: "send:" + o.code }], [{ text: "↩️ Back", callback_data: "back:" + o.code }]] };
   if (o.status === "checking") return { inline_keyboard: [[{ text: "✅ Approve", callback_data: "ok:" + o.code }, { text: "❌ Reject", callback_data: "no:" + o.code }]] };
   if (o.status === "problem") return { inline_keyboard: [[{ text: "🔁 Retry", callback_data: "send:" + o.code }]] };
@@ -232,13 +242,26 @@ async function onTelegram(req, env, ctx) {
       }
       await tg(env, "sendMessage", { chat_id: u.message.chat.id, text: n ? `Re-sent ${n} order(s) waiting for approval.` : "No orders are waiting for approval." }).catch(() => {});
     }
+    // seller typed a custom reject reason (after tapping "Type my own reason")
+    const txt = (u.message.text || "").trim();
+    if (txt && !txt.startsWith("/") && env.TG_CHAT_ID && String(u.message.from.id) === String(env.TG_CHAT_ID)) {
+      const wait = await getJson(env, "tg-reason-wait", null);
+      if (wait && Date.now() - wait.at < 15 * 60000) {
+        await env.SHOP.delete("tg-reason-wait");
+        const o = await getJson(env, "order:" + wait.code, null);
+        if (o && (o.status === "checking" || o.status === "rejected")) {
+          await rejectOrder(env, o, txt.slice(0, 300));
+          await tg(env, "sendMessage", { chat_id: u.message.chat.id, text: `❌ Order ${o.code} rejected. The buyer sees: "${txt.slice(0, 300)}"` }).catch(() => {});
+        }
+      }
+    }
     return new Response("ok");
   }
   const cq = u.callback_query;
   if (!cq) return new Response("ok");
   const answer = text => tg(env, "answerCallbackQuery", { callback_query_id: cq.id, text }).catch(() => {});
   if (!env.TG_CHAT_ID || String(cq.from.id) !== String(env.TG_CHAT_ID)) { await answer("Not allowed."); return new Response("ok"); }
-  const [act, code] = String(cq.data || "").split(":");
+  const [act, code, why] = String(cq.data || "").split(":");
   const o = await getJson(env, "order:" + code, null);
   if (!o) { await answer("Order not found."); return new Response("ok"); }
   if (!o.tg && cq.message) o.tg = { chat: cq.message.chat.id, msg: cq.message.message_id, photo: !!cq.message.photo };
@@ -247,9 +270,26 @@ async function onTelegram(req, env, ctx) {
     if (o.status !== "checking") { await answer("Already handled."); await tgShow(env, o); return new Response("ok"); }
     await tgShow(env, o, act === "ok"); await answer(act === "ok" ? "Check the address, then confirm." : "");
   } else if (act === "no") {
-    if (o.status !== "checking") { await answer("Already handled."); return new Response("ok"); }
-    o.status = "rejected"; o.closedAt = Date.now(); await saveOrder(env, o); await releaseHolds(env, o.code);
-    await tgShow(env, o); await answer("Rejected.");
+    // step 1 of rejecting (or editing the reason): pick a reason; nothing changes yet
+    if (o.status !== "checking" && o.status !== "rejected") { await answer("Already handled."); await tgShow(env, o); return new Response("ok"); }
+    await tgShow(env, o, "reasons"); await answer("Pick the reason the buyer will see.");
+  } else if (act === "rj") {
+    if (o.status !== "checking" && o.status !== "rejected") { await answer("Already handled."); await tgShow(env, o); return new Response("ok"); }
+    if (why === "own") {
+      await saveOrder(env, o); // keeps the Telegram message link for when the typed reason arrives
+      await env.SHOP.put("tg-reason-wait", JSON.stringify({ code: o.code, at: Date.now() }));
+      await tg(env, "sendMessage", { chat_id: o.tg.chat, text: `✏️ Type the reason for order ${o.code} and send it. The buyer will see it.`, reply_markup: { force_reply: true } }).catch(() => {});
+      await answer("Type your reason in the chat.");
+    } else if (REASONS[why]) { await rejectOrder(env, o, REASONS[why]); await answer("Rejected."); }
+    else await answer("");
+  } else if (act === "un") {
+    if (o.status !== "rejected") { await answer("Not rejected."); await tgShow(env, o); return new Response("ok"); }
+    const holds = await getJson(env, "holds", {}), prices = await getJson(env, "store-prices", {}), now = Date.now();
+    const busy = o.items.filter(i => (holds[i.id] && holds[i.id].until > now && holds[i.id].code !== o.code) || (prices[i.id] && prices[i.id].sold));
+    if (busy.length) { await answer(`Can't undo: #${busy.map(i => i.id).join(", #")} was ordered or sold since.`); return new Response("ok"); }
+    o.status = "checking"; delete o.reason; delete o.closedAt; await saveOrder(env, o);
+    await setHolds(env, o.items.map(i => i.id), o.code, now + 72 * 3600000);
+    await tgShow(env, o); await answer("Undone. The order is waiting for your approval again.");
   } else if (act === "send") {
     if (o.status !== "checking" && o.status !== "problem") { await answer("Already handled."); await tgShow(env, o); return new Response("ok"); }
     const day = "sent:" + phDay(), count = +(await env.SHOP.get(day) || 0);
@@ -259,6 +299,13 @@ async function onTelegram(req, env, ctx) {
     ctx.waitUntil(deliver(env, o, o.txs ? count : count + 1));
   } else await answer("");
   return new Response("ok");
+}
+
+async function rejectOrder(env, o, reason) {
+  const first = o.status === "checking";
+  o.status = "rejected"; o.reason = reason; o.closedAt = Date.now(); await saveOrder(env, o);
+  if (first) await releaseHolds(env, o.code);
+  await tgShow(env, o);
 }
 
 /* ---------- sending the Axies ---------- */
