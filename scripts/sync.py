@@ -12,8 +12,7 @@ from datetime import datetime, timezone
 
 from PIL import Image
 
-# Store wallet (ex sniper bot 2). Since 2026-11-22 the shop lists and sells only from this wallet, never the main wallet.
-WALLET = "0x64386aad85ecb4b8f5c7e6718482c86891b22049"
+WALLET = "0xe8a963a82a739e18319b89ac5d85971b0808a108"
 # Official Sky Mavis API (the free graphql-gateway started a Cloudflare bot check on 2026-11-20).
 # The key comes from the SKYMAVIS_API_KEY secret; it is never stored in the repo.
 API = "https://api-gateway.skymavis.com/graphql/axie-marketplace"

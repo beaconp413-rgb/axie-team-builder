@@ -12,8 +12,8 @@ id = "0482e02b20a544b5a8a931d023c3e0dd"
 # Public addresses only. Secrets (STORE_WALLET_KEY, TG_TOKEN, TG_CHAT_ID, TG_SECRET, SELLER_PASSWORD, SKYMAVIS_API_KEY)
 # are set with `wrangler secret put` and never written in this public repo.
 [vars]
-# Wallet whose Axies the shop lists. Same as STORE_WALLET: the main wallet is not used (user, 2026-11-22).
-LIST_WALLET = "0x64386aad85ecb4b8f5c7e6718482c86891b22049"
+# Wallet the ORIGINAL shop lists (main wallet). Do not change: the user wants the original site untouched.
+LIST_WALLET = "0xe8a963a82a739e18319b89ac5d85971b0808a108"
 # Wallet the checkout bot sends Axies from (ex sniper bot 2)
 STORE_WALLET = "0x64386aad85ecb4b8f5c7e6718482c86891b22049"
 # "on" shows the Checkout button and accepts orders

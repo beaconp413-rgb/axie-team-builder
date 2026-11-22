@@ -100,7 +100,6 @@ function renderTray(){
   $("#note").textContent = team.length === 0 ? "Pick 3 Axies" : team.length < 3 ? `${3-team.length} more to pick` : "Team complete";
   $("#copy").disabled = team.length === 0;
   $("#viewTeam").disabled = team.length < 3;
-  $("#checkout").disabled = team.length === 0;
   $("#msgWrap").hidden = true;
   try { localStorage.setItem("axieTeam", JSON.stringify(team)); } catch(e) {}
 }
@@ -273,7 +272,7 @@ function showSeller(){
   $("#ownerText").innerHTML = `<b>Seller mode.</b> ${unpriced ? `${unpriced} Axie${unpriced === 1 ? " has" : "s have"} no price yet. ` : ""}Set prices and mark sold Axies, then press <b>Save</b>. Buyers see changes right away. Just bought or sold an Axie? Press <b>Sync now</b>.`;
 }
 $("#sellerLink").addEventListener("click", () => { if ($("#ownerBar").hidden) { showSeller(); $("#ownerBar").scrollIntoView({ behavior: "smooth" }); } else $("#ownerBar").hidden = true; });
-if (location.hash.includes("seller")) showSeller();
+if (location.hash === "#seller") showSeller();
 
 async function savePrices(){
   const btn = $("#save"); btn.disabled = true; btn.textContent = "Saving…";
@@ -322,175 +321,5 @@ $("#pwForm").addEventListener("submit", e => {
 });
 window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 if (window.SYNC && window.SYNC.syncedAt) $("#syncNote").textContent = "Axie list updated " + new Date(window.SYNC.syncedAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
-
-/* ---------- checkout: buyer pays GCash, the seller approves in Telegram, the bot sends the Axies ---------- */
-const payDlg = $("#payDlg"), payBody = $("#payBody"), orderBar = $("#orderBar");
-const FINAL = ["sent", "rejected", "expired"];
-let curOrder = null, pollT = null, tickT = null;
-const okRonin = s => { const v = String(s || "").trim().replace(/^ronin:/i, "0x"); return /^0x[0-9a-fA-F]{40}$/.test(v) ? v.toLowerCase() : null; };
-const roninShow = a => "ronin:" + a.slice(2);
-const remember = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch(e) {} };
-const recall = k => { try { return localStorage.getItem(k) || ""; } catch(e) { return ""; } };
-if (window.CHECKOUT) { $("#checkout").hidden = false; document.body.classList.add("has-checkout"); }
-payBody.addEventListener("input", () => payBody.querySelectorAll(".err").forEach(e => e.textContent = ""));
-
-async function api(path, opts){
-  const r = await fetch(STORE + path, { cache: "no-store", ...opts, headers: { "Content-Type": "application/json" } });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(j.error || "Something went wrong. Check your internet and try again."), { data: j });
-  return j;
-}
-const head = t => `<div class="pay-head"><h2>${t}</h2><button class="x" type="button" data-close aria-label="Close">×</button></div>`;
-const itemsHtml = items => `<ul class="pay-items">${items.map(i => `<li><span>${esc(i.name)} <span class="id">#${i.id}</span></span><b>${peso(i.price)}</b></li>`).join("")}</ul>`;
-
-function openCheckout(){
-  if (curOrder && !FINAL.includes(curOrder.status)) return showOrder(curOrder);
-  if (!team.length) return;
-  if (noAccount) {
-    payBody.innerHTML = `${head("Checkout")}
-      <p class="note">Checkout sends the Axies straight to <b>your own Ronin wallet</b>. You chose <b>None</b>, so I'll make an account for you by hand: tap <b>Copy order</b> and message me on Facebook.</p>
-      <button class="btn" type="button" id="coHave">I have a Ronin wallet</button>`;
-    $("#coHave").addEventListener("click", () => { noAccount = false; remember("axieNoAccount", "0"); renderTray(); openCheckout(); });
-  } else renderForm();
-  if (!payDlg.open) payDlg.showModal();
-}
-
-function renderForm(){
-  const m = byId(), items = team.map(id => ({ id, name: m[id].name, price: m[id].price }));
-  payBody.innerHTML = `${head("Checkout")}${itemsHtml(items)}
-    <div class="pay-total"><span>Total</span><span class="big">${peso(items.reduce((s, i) => s + i.price, 0))}</span></div>
-    <form id="coForm" class="pay" style="padding:0" novalidate>
-      <label class="f">Your Ronin wallet address<span class="h">In the Ronin Wallet app, tap your address to copy it. It starts with ronin: or 0x.</span>
-        <input type="text" class="mono" id="coAddr" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ronin:…" value="${esc(recall("axieBuyerRonin"))}"></label>
-      <label class="chk"><input type="checkbox" id="coOk"><span>My address is correct. Axies sent to a wrong address can't be returned.</span></label>
-      <p class="err" id="coErr" role="alert"></p>
-      <button class="btn" type="submit" id="coGo">Place order</button>
-      <p class="note">Next you pay with GCash. Your Axies are held for you for 30 minutes.</p>
-    </form>`;
-  $("#coForm").addEventListener("submit", async e => {
-    e.preventDefault();
-    const err = t => { $("#coErr").textContent = t; };
-    const ronin = okRonin($("#coAddr").value);
-    if (!ronin) return err("That Ronin address doesn't look right. Copy it again from the Ronin Wallet app.");
-    if (!$("#coOk").checked) return err("Tick the box to confirm your address.");
-    remember("axieBuyerRonin", roninShow(ronin));
-    const go = $("#coGo"); go.disabled = true; go.textContent = "Placing order…"; err("");
-    try {
-      const o = await api("/order", { method: "POST", body: JSON.stringify({ ids: team, ronin }) });
-      setOrder(o); showOrder(o);
-    } catch (x) {
-      go.disabled = false; go.textContent = "Place order"; err(x.message);
-      const gone = x.data && x.data.unavailable;
-      if (gone && gone.length) { team = team.filter(id => !gone.includes(id)); renderGrid(); renderTray(); }
-    }
-  });
-}
-
-function setOrder(o){
-  curOrder = o; remember("axieOrder", o.code);
-  history.replaceState(null, "", "#order=" + o.code);
-  orderBar.hidden = payDlg.open || FINAL.includes(o.status);
-  orderBar.textContent = o.status === "awaiting_payment" ? `Order ${o.code}: waiting for your GCash payment →` : `Order ${o.code}: ${o.status === "checking" ? "checking your payment" : "sending your Axies"} →`;
-}
-
-function showOrder(o){
-  clearInterval(tickT); clearTimeout(pollT);
-  const linkBtn = `<button class="btn ghost" type="button" data-link>Copy link to this order</button>`;
-  if (o.status === "awaiting_payment") {
-    const g = o.gcash || {};
-    payBody.innerHTML = `${head("Pay with GCash")}
-      <p class="note">Order <b>${o.code}</b> · <span class="timer" id="coTimer"></span> left to pay</p>
-      <div class="pay-total"><span>Send exactly</span><span class="big">${peso(o.total)}</span></div>
-      ${g.qr ? `<img class="qr" src="${STORE}/gcash-qr" alt="GCash QR code to pay">` : ""}
-      ${g.number ? `<div class="gc"><div class="row"><span>GCash name</span><b>${esc(g.name || "")}</b></div>
-        <span class="lbl">GCash number</span><div class="numrow"><span class="num">${esc(g.number)}</span><button class="btn ghost" type="button" data-copy="${esc(g.number)}">Copy number</button></div></div>` : ""}
-      <p class="note">After paying, copy the <b>Ref. No.</b> from your GCash receipt and paste it below.</p>
-      <form id="refForm" class="pay" style="padding:0" novalidate>
-        <label class="f">GCash reference number<input type="text" class="mono" id="coRef" inputmode="numeric" maxlength="24" placeholder="13 digits"></label>
-        <p class="err" id="refErr" role="alert"></p>
-        <button class="btn" type="submit" id="refGo">I've paid</button>
-      </form>
-      <p class="note">Your Axies will be sent to:</p><div class="addr">${roninShow(o.ronin)}</div>`;
-    const tick = () => {
-      const left = Math.max(0, o.payBy - Date.now());
-      const el = $("#coTimer"); if (el) el.textContent = `${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, "0")}`;
-      if (!left) { clearInterval(tickT); refreshOrder(); }
-    };
-    tick(); tickT = setInterval(tick, 1000);
-    $("#refForm").addEventListener("submit", async e => {
-      e.preventDefault();
-      const ref = $("#coRef").value.replace(/\D/g, "");
-      if (ref.length < 10) { $("#refErr").textContent = "Paste the reference number from your GCash receipt (13 digits)."; return; }
-      const go = $("#refGo"); go.disabled = true; go.textContent = "Sending…";
-      try { const n = await api(`/order/${o.code}/paid`, { method: "POST", body: JSON.stringify({ ref }) }); setOrder(n); showOrder(n); }
-      catch (x) { go.disabled = false; go.textContent = "I've paid"; $("#refErr").textContent = x.message; if (x.data && x.data.order) { setOrder(x.data.order); showOrder(x.data.order); } }
-    });
-  } else if (o.status === "checking" || o.status === "sending" || o.status === "problem") {
-    const checking = o.status === "checking";
-    payBody.innerHTML = `${head(checking ? "Payment received" : "Sending your Axies")}
-      <div class="state"><div class="spin" aria-hidden="true"></div>
-        <h3>${checking ? "Checking your payment" : "Sending your Axies…"}</h3>
-        <p class="note">${checking
-          ? `I'm checking my GCash for <b>${peso(o.total)}</b> (ref ${esc(o.ref || "")}). Once it's confirmed, your Axies are sent to your wallet automatically.`
-          : o.status === "problem" ? "This is taking longer than usual. I'm on it, and your Axies are still held for you." : "Your payment is confirmed. This takes about a minute."}</p></div>
-      ${itemsHtml(o.items)}
-      <p class="note">You can close this page. Open the order link again any time to see the status.</p>${linkBtn}`;
-    pollT = setTimeout(refreshOrder, checking ? 8000 : 4000);
-  } else if (o.status === "sent") {
-    payBody.innerHTML = `${head("Done!")}
-      <div class="state"><div class="ic" aria-hidden="true">✅</div><h3>${o.confirmed ? "Your Axies are in your wallet" : "Your Axies are on the way"}</h3>
-        <p class="note">Open Axie Classic to use them. Thank you for buying!</p></div>
-      <ul class="pay-items">${o.items.map(i => { const t = o.txs[i.id]; return `<li><span>${esc(i.name)} <span class="id">#${i.id}</span></span>${t && t.hash ? `<a href="https://app.roninchain.com/tx/${t.hash}" target="_blank" rel="noopener">Proof ↗</a>` : "<b>Sent</b>"}</li>`; }).join("")}</ul>
-      <div class="addr">${roninShow(o.ronin)}</div>
-      <button class="btn" type="button" data-done>Done</button>`;
-    if (!o.confirmed) pollT = setTimeout(refreshOrder, 5000);
-    const ids = o.items.map(i => i.id);
-    AXIES.forEach(a => { if (ids.includes(a.id)) a.sold = true; });
-    team = team.filter(id => !ids.includes(id)); renderGrid(); renderTray();
-  } else {
-    const rejected = o.status === "rejected";
-    payBody.innerHTML = `${head(rejected ? "Payment not found" : "Time's up")}
-      <div class="state"><div class="ic" aria-hidden="true">${rejected ? "❌" : "⏰"}</div>
-        <p class="note">${rejected
-          ? `I couldn't find your GCash payment for order <b>${o.code}</b>. Message me on Facebook with a screenshot of your GCash receipt and I'll sort it out.`
-          : "The 30 minutes to pay ran out, so the Axies were released. You can order again."}</p></div>
-      <button class="btn" type="button" data-done>${rejected ? "Close" : "Start over"}</button>`;
-  }
-  if (!payDlg.open) payDlg.showModal();
-  orderBar.hidden = true;
-}
-
-async function refreshOrder(){
-  if (!curOrder) return;
-  try { const o = await api("/order/" + curOrder.code); setOrder(o); if (payDlg.open) showOrder(o); }
-  catch (x) { if (payDlg.open && !FINAL.includes(curOrder.status)) pollT = setTimeout(refreshOrder, 10000); }
-}
-
-payBody.addEventListener("click", e => {
-  if (e.target.closest("[data-close]")) return payDlg.close();
-  const c = e.target.closest("[data-copy]");
-  if (c) navigator.clipboard.writeText(c.dataset.copy).then(() => toast("GCash number copied."), () => {});
-  if (e.target.closest("[data-link]")) navigator.clipboard.writeText(location.href.split("#")[0] + "#order=" + curOrder.code).then(() => toast("Order link copied. Keep it to check your order."), () => {});
-  if (e.target.closest("[data-done]")) { remember("axieOrder", null); curOrder = null; history.replaceState(null, "", location.pathname); payDlg.close(); }
-});
-payDlg.addEventListener("click", e => { if (e.target === payDlg) payDlg.close(); });
-payDlg.addEventListener("close", () => {
-  clearInterval(tickT); clearTimeout(pollT);
-  if (curOrder && !FINAL.includes(curOrder.status)) setOrder(curOrder);
-});
-orderBar.addEventListener("click", () => curOrder && (showOrder(curOrder), refreshOrder()));
-$("#checkout").addEventListener("click", openCheckout);
-
-// reopen an order from its link (#order=CODE) or from this phone's last order
-(async () => {
-  const code = (location.hash.match(/order=([A-Z2-9]{8})/) || [])[1] || recall("axieOrder");
-  if (!code || !STORE) return;
-  try {
-    const o = await api("/order/" + code);
-    curOrder = o;
-    if (location.hash.includes(code) || !FINAL.includes(o.status)) showOrder(o);
-    else remember("axieOrder", null);
-  } catch (e) { remember("axieOrder", null); }
-})();
 
 chips(); renderGrid(); renderTray();
