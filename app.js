@@ -273,7 +273,7 @@ function showSeller(){
   $("#ownerText").innerHTML = `<b>Seller mode.</b> ${unpriced ? `${unpriced} Axie${unpriced === 1 ? " has" : "s have"} no price yet. ` : ""}Set prices and mark sold Axies, then press <b>Save</b>. Buyers see changes right away. Just bought or sold an Axie? Press <b>Sync now</b>.`;
 }
 $("#sellerLink").addEventListener("click", () => { if ($("#ownerBar").hidden) { showSeller(); $("#ownerBar").scrollIntoView({ behavior: "smooth" }); } else $("#ownerBar").hidden = true; });
-if (location.hash === "#seller") showSeller();
+if (location.hash.includes("seller")) showSeller();
 
 async function savePrices(){
   const btn = $("#save"); btn.disabled = true; btn.textContent = "Saving…";
