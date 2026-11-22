@@ -46,11 +46,12 @@ const WALLET = "0xe8a963a82a739e18319b89ac5d85971b0808a108";
 // sort is required: without it the API's paging order shifts between pages (repeats and skipped Axies)
 const QUERY = `query($o:String!,$f:Int!){ axies(owner:$o, from:$f, size:100, sort: IdAsc){ total results{ id name class breedCount bodyShape
   stats{hp speed skill morale} parts{ name class type stage abilities{ id name attack defense energy description backgroundUrl } } } } }`;
-async function fetchWallet() {
+// Official Sky Mavis API; the key is the Worker secret SKYMAVIS_API_KEY
+async function fetchWallet(env) {
   const out = [];
   for (let from = 0; ; from += 100) {
-    const r = await fetch("https://graphql-gateway.axieinfinity.com/graphql", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    const r = await fetch("https://api-gateway.skymavis.com/graphql/axie-marketplace", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-API-Key": env.SKYMAVIS_API_KEY },
       body: JSON.stringify({ query: QUERY, variables: { o: WALLET, f: from } }),
     });
     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -83,7 +84,7 @@ export default {
       const prev = JSON.parse((await env.SHOP.get("wallet")) || "{}");
       if (prev.syncedAt && Date.now() - Date.parse(prev.syncedAt) < 30000) return json({ ok: true, count: prev.axies.length, note: "just synced" });
       let raw;
-      try { raw = await fetchWallet(); } catch (e) { return json({ error: "axie api: " + e.message }, 502); }
+      try { raw = await fetchWallet(env); } catch (e) { return json({ error: "axie api: " + e.message }, 502); }
       if (!raw.length) return json({ error: "axie api returned no axies" }, 502);
       const cards = {}, seen = new Set();
       // skip repeats and unhatched eggs (no class or parts yet)

@@ -22,6 +22,8 @@ jobs:
           python-version: "3.12"
       - run: pip install pillow
       - run: python scripts/sync.py
+        env:
+          SKYMAVIS_API_KEY: ${{ secrets.SKYMAVIS_API_KEY }}
       - name: Commit changes
         run: |
           # meta.json changes every run; only commit when the Axies or cards changed

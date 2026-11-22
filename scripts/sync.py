@@ -13,7 +13,10 @@ from datetime import datetime, timezone
 from PIL import Image
 
 WALLET = "0xe8a963a82a739e18319b89ac5d85971b0808a108"
-API = "https://graphql-gateway.axieinfinity.com/graphql"
+# Official Sky Mavis API (the free graphql-gateway started a Cloudflare bot check on 2026-11-20).
+# The key comes from the SKYMAVIS_API_KEY secret; it is never stored in the repo.
+API = "https://api-gateway.skymavis.com/graphql/axie-marketplace"
+API_KEY = os.environ.get("SKYMAVIS_API_KEY", "")
 # sort is required: without it the API's paging order shifts between pages,
 # so some Axies come back twice and others are skipped
 QUERY = """{ axies(owner:"%s", from:%d, size:100, sort: IdAsc){ total results{ id name class breedCount bodyShape
@@ -22,10 +25,9 @@ QUERY = """{ axies(owner:"%s", from:%d, size:100, sort: IdAsc){ total results{ i
 
 
 def curl(url, data=None):
-    # curl, not urllib: the API's bot filter rejects Python's HTTP client
     cmd = ["curl", "-sS", "--fail", "-m", "60", url]
     if data is not None:
-        cmd += ["-H", "Content-Type: application/json", "--data-binary", "@-"]
+        cmd += ["-H", "Content-Type: application/json", "-H", f"X-API-Key: {API_KEY}", "--data-binary", "@-"]
     return subprocess.run(cmd, input=data, capture_output=True, check=True).stdout
 
 
@@ -52,6 +54,9 @@ def thumb(url, path, size):
 
 
 def main():
+    if not API_KEY:
+        print("SKYMAVIS_API_KEY is not set, nothing changed.")
+        return 1
     try:
         raw = fetch_axies()
     except Exception as e:  # noqa: BLE001
