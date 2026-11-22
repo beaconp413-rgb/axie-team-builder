@@ -105,7 +105,6 @@ async function createOrder(req, env) {
   if (!ronin) return [400, { error: "That Ronin address doesn't look right. It starts with ronin: or 0x, followed by 40 letters and numbers." }];
   if (ronin === env.STORE_WALLET.toLowerCase() || ronin === env.LIST_WALLET.toLowerCase()) return [400, { error: "Enter your own Ronin address." }];
   const name = String(body.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
-  if (!name) return [400, { error: "Enter your Facebook name so I know who you are." }];
 
   const prices = await getJson(env, "prices", {});
   const wallet = await getJson(env, "wallet", {});
@@ -173,7 +172,7 @@ function tgText(o) {
   const lines = [
     head, "",
     `Order <code>${o.code}</code> · <b>${peso(o.total)}</b>`,
-    `Buyer: ${html(o.name)}`,
+    ...(o.name ? [`Buyer: ${html(o.name)}`] : []),
     `GCash ref: <code>${o.ref}</code>`,
     ...o.items.map(i => `• #${i.id} ${html(i.name)} — ${peso(i.price)}`),
     `Send to: <code>${o.ronin}</code>`,
