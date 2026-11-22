@@ -69,10 +69,10 @@ assert(sent.length === 2 && order(code).status === "sent", "confirm -> 2 transfe
 assert(JSON.parse(kv.get("store-prices"))["111"].sold, "Axies marked sold");
 assert(lastEdit().caption.includes("✅ <b>Sent</b>"), "Telegram message updated to Sent");
 await tap("send:" + code); await Promise.all(waits); assert(sent.length === 2, "second tap doesn't send again");
-r = await call("POST", "/order", { ids: ["111"], ronin: buyer, name: "X" }); assert(r.status === 409, "sold Axie can't be ordered");
+r = await call("POST", "/order", { ids: ["111"], ronin: buyer, name: "XX Buyer" }); assert(r.status === 409, "sold Axie can't be ordered");
 
 kv.set("store-prices", JSON.stringify({ "444": { price: 100, sold: false } })); owners["444"] = store;
-r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "Y" }); const c2 = r.body.code;
+r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "YY Buyer" }); const c2 = r.body.code;
 await call("POST", `/order/${c2}/paid`, shot()); r = await call("POST", `/order/${c2}/paid`, shot()); assert(r.status === 409, "can't upload twice");
 await tap("no:" + c2);
 assert(order(c2).status === "checking" && lastEdit().reply_markup.inline_keyboard.length === 5, "Reject first asks for a reason, nothing changes yet");
@@ -87,12 +87,12 @@ assert(order(c2).reason === "Ref number does not exist in GCash" && !kv.get("tg-
 await tap("un:" + c2); assert(order(c2).status === "checking" && !order(c2).reason && JSON.parse(kv.get("holds"))["444"].code === c2, "Undo reject: back to waiting, Axie held again");
 await tap("no:" + c2); await tap("rj:" + c2 + ":nr"); assert(order(c2).status === "rejected", "rejected again");
 
-r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "Z" }); const c3 = r.body.code;
+r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "ZZ Buyer" }); const c3 = r.body.code;
 const o3 = order(c3); o3.payBy = Date.now() - 1; kv.set("order:" + c3, JSON.stringify(o3));
 r = await call("GET", `/order/${c3}`); assert(r.body.status === "expired" && !JSON.parse(kv.get("holds"))["444"], "unpaid order expires and frees the Axie");
 
 kv.delete("rl:1.1.1.1");
-r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "W" }); const c4 = r.body.code;
+r = await call("POST", "/order", { ids: ["444"], ronin: buyer, name: "WW Buyer" }); const c4 = r.body.code;
 await call("POST", `/order/${c4}/paid`, shot()); env.STORE_WALLET_KEY = generatePrivateKey();
 await tap("ok:" + c4); await tap("send:" + c4); await Promise.all(waits);
 assert(order(c4).status === "problem" && /doesn't match/.test(order(c4).note) && sent.length === 2, "wrong key -> problem, nothing sent");
