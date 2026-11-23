@@ -20,5 +20,14 @@ STORE_WALLET = "0x64386aad85ecb4b8f5c7e6718482c86891b22049"
 CHECKOUT = "on"
 MAX_SENT_PER_DAY = "20"
 
+# Shop dashboard (live viewers, visits, orders): one SQLite Durable Object, see insights.js
+[[durable_objects.bindings]]
+name = "INSIGHTS"
+class_name = "Insights"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Insights"]
+
 [triggers]
 crons = ["*/15 * * * *"]

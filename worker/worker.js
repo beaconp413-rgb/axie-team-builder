@@ -6,6 +6,8 @@
 // GET  /wallet  -> the latest wallet snapshot saved by /sync
 // Checkout routes (/order, /tg, /config, /gcash-qr) live in orders.js
 import { handleOrders, restock } from "./orders.js";
+import { handleInsights } from "./insights.js";
+export { Insights } from "./insights.js";
 const ORIGINS = ["https://beaconp413-rgb.github.io"];
 
 function cors(req) {
@@ -87,6 +89,8 @@ export default {
     const store = url.pathname.startsWith("/store/");
     const pathname = store ? url.pathname.slice(6) : url.pathname;
     const K = store ? { prices: "store-prices", wallet: "store-wallet", owner: env.STORE_WALLET } : { prices: "prices", wallet: "wallet", owner: env.LIST_WALLET };
+    const insightRes = await handleInsights(req, env, ctx, json, r => sameSecret(r.headers.get("X-Seller-Password"), env.SELLER_PASSWORD));
+    if (insightRes) return insightRes;
     const orderRes = await handleOrders(req, env, ctx, json, r => sameSecret(r.headers.get("X-Seller-Password"), env.SELLER_PASSWORD));
     if (orderRes) return orderRes;
 

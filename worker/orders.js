@@ -50,7 +50,11 @@ export function normalizeRonin(s) {
 }
 
 const getJson = async (env, key, dflt) => { const v = await env.SHOP.get(key); return v ? JSON.parse(v) : dflt; };
-const saveOrder = (env, o) => env.SHOP.put("order:" + o.code, JSON.stringify(o), { expirationTtl: 180 * 86400 });
+const saveOrder = async (env, o) => {
+  await env.SHOP.put("order:" + o.code, JSON.stringify(o), { expirationTtl: 180 * 86400 });
+  // copy to the shop dashboard (insights.js); never let that break checkout
+  if (env.INSIGHTS) { try { await env.INSIGHTS.get(env.INSIGHTS.idFromName("axie-store")).order(o); } catch {} }
+};
 
 async function releaseHolds(env, code) {
   const holds = await getJson(env, "holds", {});
@@ -131,7 +135,7 @@ async function createOrder(req, env) {
   do { code = [...crypto.getRandomValues(new Uint8Array(8))].map(b => CODE_ABC[b % CODE_ABC.length]).join(""); }
   while (await env.SHOP.get("order:" + code));
   const o = { code, status: "awaiting_payment", items, total: items.reduce((s, i) => s + i.price, 0), ronin, name,
-    createdAt: now, payBy: now + PAY_MINUTES * 60e3, ip };
+    createdAt: now, payBy: now + PAY_MINUTES * 60e3, ip, city: (req.cf && req.cf.city) || "", country: (req.cf && req.cf.country) || "" };
   await saveOrder(env, o);
   await setHolds(env, ids, code, o.payBy);
   await env.SHOP.put(rlKey, String(tries + 1), { expirationTtl: 3600 });
